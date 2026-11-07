@@ -26,12 +26,81 @@ export type TorrentEngine = ReturnType<typeof torrentStream> & {
   discovery?: any;
   bitfield?: any;
   selection?: any[];
+  isPaused?: boolean;
+  _selectedFileIndices?: Set<number>;
+  _maxDownloadedBytes?: number;
+  _statsSeq?: number;
   destroy: (cb?: () => void) => void;
   remove: (keepPieces: boolean, cb?: () => void) => void;
   listen: (port: number, cb?: () => void) => void;
   select: (from?: number, to?: number, priority?: number) => void;
   deselect: (from?: number, to?: number, priority?: number) => void;
 };
+
+export function pauseTorrent(engine: TorrentEngine): void {
+  engine.isPaused = true;
+  if (engine.swarm && typeof engine.swarm.pause === 'function') {
+    engine.swarm.pause();
+  }
+
+  // Choke/pause existing active wires to halt in-flight requests immediately
+  if (engine.swarm?.wires && Array.isArray(engine.swarm.wires)) {
+    engine.swarm.wires.forEach((wire: any) => {
+      try {
+        if (typeof wire.choke === 'function') {
+          wire.choke();
+        }
+      } catch {
+        // Ignore
+      }
+    });
+  }
+
+  // Remember which files were selected before deselecting
+  if (!engine._selectedFileIndices) {
+    engine._selectedFileIndices = new Set<number>();
+  }
+  engine._selectedFileIndices.clear();
+
+  if (engine.files && Array.isArray(engine.files)) {
+    engine.files.forEach((file: any, index: number) => {
+      if (file.selected !== false) {
+        engine._selectedFileIndices?.add(index);
+      }
+    });
+  }
+
+  // Deselect all pieces to stop download
+  const totalPieces = engine.torrent?.pieces?.length || 1;
+  try {
+    engine.deselect(0, totalPieces - 1, 0);
+  } catch {
+    // Ignore
+  }
+}
+
+export function resumeTorrent(engine: TorrentEngine): void {
+  engine.isPaused = false;
+  if (engine.swarm && typeof engine.swarm.resume === 'function') {
+    engine.swarm.resume();
+  }
+
+  // Re-select remembered files or all selected files
+  if (engine.files && Array.isArray(engine.files)) {
+    engine.files.forEach((file: any, index: number) => {
+      const wasSelected = engine._selectedFileIndices
+        ? engine._selectedFileIndices.has(index)
+        : file.selected !== false;
+
+      if (wasSelected) {
+        if (typeof file.select === 'function') {
+          file.select();
+        }
+        file.selected = true;
+      }
+    });
+  }
+}
 
 export function enforceSilentZeroRatio(engine: TorrentEngine): void {
   if (engine.swarm) {
@@ -47,8 +116,30 @@ export function enforceSilentZeroRatio(engine: TorrentEngine): void {
       configurable: true
     });
 
-    engine.swarm.on('wire', (wire: any) => {
+    engine.swarm.on('wire', (wire: any, connection?: any) => {
       try {
+        // Prevent unhandled EPIPE/ECONNRESET on peer socket from crashing the Node.js process
+        if (connection && typeof connection.on === 'function') {
+          connection.on('error', (err: any) => {
+            // Silently destroy disconnected peer connection
+            try {
+              connection.destroy();
+            } catch {
+              // Ignore
+            }
+          });
+        }
+
+        if (typeof wire.on === 'function') {
+          wire.on('error', () => {
+            try {
+              wire.destroy();
+            } catch {
+              // Ignore
+            }
+          });
+        }
+
         if (typeof wire.choke === 'function') {
           wire.choke();
         }

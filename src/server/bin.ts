@@ -91,6 +91,17 @@ export async function startServer(options?: Partial<CliOptions>): Promise<{
   });
 }
 
+// Global safeguard against unhandled network socket errors (EPIPE, ECONNRESET)
+// commonly thrown when remote peers disconnect abruptly in peer-wire-swarm / torrent-stream
+process.on('uncaughtException', (err: any) => {
+  if (err && (err.code === 'EPIPE' || err.code === 'ECONNRESET' || err.code === 'ECONNABORTED')) {
+    // Benign socket disconnect error from remote peer or client abort - do not crash
+    return;
+  }
+  console.error('[Peerflix] Uncaught exception:', err);
+  process.exit(1);
+});
+
 // Auto-run if executed directly
 if (process.argv[1] && (process.argv[1].endsWith('bin.ts') || process.argv[1].endsWith('bin.js'))) {
   startServer().catch((err) => {

@@ -87,6 +87,55 @@ describe('Serializer, Stats, and System routes', () => {
     expect(fullySerialized.isFullyDownloaded).toBe(true);
   });
 
+  it('should display downloadedPercentage with 1 decimal and ensure calculateTorrentStats is strictly monotonic', () => {
+    let piecesVerified = 1;
+    const fakeBitfield = {
+      get: (pieceIndex: number) => pieceIndex < piecesVerified
+    };
+
+    const engine: any = {
+      infoHash: '1111222233334444555566667777888899990000',
+      ready: true,
+      bitfield: fakeBitfield,
+      torrent: {
+        name: 'Monotonic Test Torrent',
+        length: 10000,
+        pieceLength: 250,
+        pieces: new Array(40).fill(1)
+      },
+      files: [{ name: 'test.mkv', length: 10000, offset: 0, selected: true }],
+      swarm: { wires: [], downloadSpeed: () => 1000 }
+    };
+
+    // 1 piece verified out of 40 = 2.5%
+    const stats1 = calculateTorrentStats(engine);
+    expect(stats1.downloaded).toBe(250);
+    expect(stats1.progress).toBe(0.025);
+    expect(stats1.seq).toBe(1);
+
+    // serializeTorrent internally calls calculateTorrentStats (seq -> 2)
+    const serialized1 = serializeTorrent(engine);
+    expect(serialized1.downloadedPercentage).toBe(2.5);
+    expect(serialized1.stats.seq).toBe(2);
+
+    // Simulate bitfield glitch or out-of-order count (0 pieces)
+    piecesVerified = 0;
+    const statsGlitch = calculateTorrentStats(engine);
+    // Even if bitfield returned 0, monotonic safeguard preserves the previous max
+    expect(statsGlitch.downloaded).toBe(250);
+    expect(statsGlitch.seq).toBe(3);
+
+    // Increase to 2 pieces = 5.0%
+    piecesVerified = 2;
+    const stats2 = calculateTorrentStats(engine);
+    expect(stats2.downloaded).toBe(500);
+    expect(stats2.seq).toBe(4);
+
+    const serialized2 = serializeTorrent(engine);
+    expect(serialized2.downloadedPercentage).toBe(5.0);
+    expect(serialized2.stats.seq).toBe(5);
+  });
+
   describe('Integration with API routes (/pin and /system/status)', () => {
     let tempConfigDir: string;
     let tempDownloadDir: string;

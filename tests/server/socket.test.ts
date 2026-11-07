@@ -115,11 +115,13 @@ describe('Socket.IO event security and bounds validation', () => {
     clientSocket.emit('pause', testHash);
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(mockEngine.swarm.pause).toHaveBeenCalled();
+    expect(mockEngine.isPaused).toBe(true);
 
     // Resume
     clientSocket.emit('resume', testHash);
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(mockEngine.swarm.resume).toHaveBeenCalled();
+    expect(mockEngine.isPaused).toBe(false);
 
     // Select valid index 0
     clientSocket.emit('select', testHash, 0);

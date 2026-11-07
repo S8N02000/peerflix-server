@@ -44,6 +44,8 @@ export interface TorrentStatsDTO {
     total: number;
     unchoked: number;
   };
+  seq?: number;
+  paused?: boolean;
 }
 
 export interface ServerDiskStatsDTO {
@@ -57,6 +59,7 @@ export interface SystemStatusDTO {
   disk: ServerDiskStatsDTO;
   nextCleanAt: string;
   totalDownSpeed: number;
+  authenticatedOrigin?: string;
 }
 
 export interface TorrentDTO {
@@ -66,6 +69,7 @@ export interface TorrentDTO {
   ready: boolean;
   interested: boolean;
   pinned: boolean;
+  paused?: boolean;
   addedAt: number;
   category: TorrentCategory;
   isFullyDownloaded: boolean;
@@ -73,4 +77,39 @@ export interface TorrentDTO {
   progress: number[];
   stats: TorrentStatsDTO;
   files: TorrentFileDTO[];
+}
+
+export interface VideoStreamDTO {
+  index: number;
+  codec: string;
+  width?: number;
+  height?: number;
+  browserSupported: boolean;
+}
+
+export interface AudioStreamDTO {
+  index: number;
+  audioTrackIndex: number;
+  codec: string;
+  channels: number;
+  language?: string;
+  title?: string;
+  browserSupported: boolean;
+}
+
+export interface SubtitleStreamDTO {
+  index: number;
+  subTrackIndex: number;
+  codec: string;
+  language?: string;
+  title?: string;
+  isTextBased: boolean;
+}
+
+export interface MediaProbeDTO {
+  durationSeconds?: number;
+  videoStreams: VideoStreamDTO[];
+  audioStreams: AudioStreamDTO[];
+  subtitleStreams: SubtitleStreamDTO[];
+  needsAudioRemux: boolean;
 }

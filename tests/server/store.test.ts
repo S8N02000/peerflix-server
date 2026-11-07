@@ -123,4 +123,107 @@ describe('Torrent Store Service', () => {
     await store.destroyAll();
     createTorrentEngineSpy.mockRestore();
   });
+
+  it('should retain cached files, length and downloadedBytes in serializeTorrent immediately after reboot', async () => {
+    const { serializeTorrent } = await import('../../src/server/services/serializer.js');
+
+    // 1. Manually write a torrents.json with cached files
+    const testHash = '0123456789abcdef0123456789abcdef01234567';
+    const initialData = {
+      [testHash]: {
+        infoHash: testHash,
+        name: 'Big Movie 2026',
+        length: 83000000000,
+        category: 'video',
+        addedAt: Date.now(),
+        pinned: true,
+        paused: false,
+        downloadedBytes: 41500000000,
+        isFullyDownloaded: false,
+        files: [
+          {
+            index: 0,
+            name: 'Big Movie 2026.mkv',
+            path: 'Big Movie 2026.mkv',
+            length: 83000000000,
+            selected: true
+          }
+        ]
+      }
+    };
+
+    await fs.mkdir(tempConfigDir, { recursive: true });
+    await fs.writeFile(
+      path.join(tempConfigDir, 'torrents.json'),
+      JSON.stringify(initialData),
+      'utf-8'
+    );
+
+    const store = new TorrentStore({
+      configPath: tempConfigDir,
+      downloadPath: tempDownloadDir
+    });
+
+    await store.init();
+    const engine = store.get(testHash);
+    expect(engine).toBeDefined();
+
+    // Engine is NOT yet ready (verifying pieces)
+    expect(engine!.ready).toBe(false);
+
+    const meta = store.getMetadata(testHash);
+    expect(meta).toBeDefined();
+
+    // serializeTorrent should provide the full list of files and size from cache!
+    const dto = serializeTorrent(engine!, meta);
+    expect(dto.name).toBe('Big Movie 2026');
+    expect(dto.length).toBe(83000000000);
+    expect(dto.category).toBe('video');
+    expect(dto.files.length).toBe(1);
+    expect(dto.files[0].name).toBe('Big Movie 2026.mkv');
+    expect(dto.files[0].length).toBe(83000000000);
+    expect(dto.stats.downloaded).toBe(41500000000);
+    expect(dto.downloadedPercentage).toBe(50);
+
+    await store.destroyAll();
+  });
+
+  it('should immediately pre-fill meta.files, length and category in store.add() before ready', async () => {
+    const parseTorrentModule = await import('../../src/server/services/torrent-parser.js');
+    const fakeInfoHash = 'aabbccddeeff00112233445566778899aabbccdd';
+    const parseSpy = vi.spyOn(parseTorrentModule, 'parseTorrentInput').mockResolvedValueOnce({
+      parsed: {
+        infoHash: fakeInfoHash,
+        name: 'Immediate Torrent',
+        length: 5000000,
+        files: [
+          { name: 'movie.mp4', path: 'movie.mp4', length: 4900000 },
+          { name: 'movie.nfo', path: 'movie.nfo', length: 100000 }
+        ]
+      } as any,
+      source: `magnet:?xt=urn:btih:${fakeInfoHash}`
+    });
+
+    const store = new TorrentStore({
+      configPath: tempConfigDir,
+      downloadPath: tempDownloadDir
+    });
+    await store.init();
+
+    const infoHash = await store.add(`magnet:?xt=urn:btih:${fakeInfoHash}`);
+    expect(infoHash).toBe(fakeInfoHash);
+
+    const meta = store.getMetadata(fakeInfoHash);
+    expect(meta).toBeDefined();
+    expect(meta?.name).toBe('Immediate Torrent');
+    expect(meta?.length).toBe(5000000);
+    expect(meta?.category).toBe('video');
+    expect(meta?.files?.length).toBe(2);
+    expect(meta?.files?.[0].name).toBe('movie.mp4');
+    expect(meta?.files?.[0].selected).toBe(true);
+    expect(meta?.files?.[1].name).toBe('movie.nfo');
+
+    await store.destroyAll();
+    parseSpy.mockRestore();
+  });
 });

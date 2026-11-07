@@ -6,12 +6,30 @@ import { parseTorrentInput } from './torrent-parser.js';
 import { createTorrentEngine, type TorrentEngine, type TorrentEngineOptions } from './engine.js';
 import parseTorrent from 'parse-torrent';
 
+import type { TorrentCategory } from '../../shared/types.js';
+import { pauseTorrent } from './engine.js';
+import { classifyTorrent, shouldSelectFile } from './classifier.js';
+
+export interface CachedFileMetadata {
+  index: number;
+  name: string;
+  path: string;
+  length: number;
+  selected: boolean;
+}
+
 export interface StoredTorrentMetadata {
   infoHash: string;
   name?: string;
+  length?: number;
+  category?: TorrentCategory;
   addedAt: number;
   pinned: boolean;
+  paused?: boolean;
+  downloadedBytes?: number;
+  isFullyDownloaded?: boolean;
   magnet?: string;
+  files?: CachedFileMetadata[];
 }
 
 export interface StoreOptions {
@@ -115,6 +133,117 @@ export class TorrentStore extends EventEmitter {
     }
   }
 
+  private attachEngineReadyHandler(engine: TorrentEngine, meta: StoredTorrentMetadata): void {
+    engine.once('ready', async () => {
+      try {
+        // 1. Save .torrent file if it does not exist yet (e.g., added from Magnet)
+        const torrentFilePath = path.join(this.torrentsDir, `${meta.infoHash}.torrent`);
+        try {
+          await fs.access(torrentFilePath);
+        } catch {
+          if (engine.torrent) {
+            try {
+              const toTorrentFn = (parseTorrent as any).toTorrentFile || (parseTorrent as any).default?.toTorrentFile;
+              if (typeof toTorrentFn === 'function') {
+                const torrentBuffer = toTorrentFn(engine.torrent);
+                await fs.writeFile(torrentFilePath, torrentBuffer);
+              }
+            } catch (err: any) {
+              console.warn(`[Store] Could not export .torrent file for ${meta.infoHash}:`, err.message);
+            }
+          }
+        }
+
+        // 2. Cache metadata (name, length, category, files)
+        if (engine.torrent?.name) {
+          meta.name = engine.torrent.name;
+        }
+        if (typeof engine.torrent?.length === 'number') {
+          meta.length = engine.torrent.length;
+        }
+        if (engine.category) {
+          meta.category = engine.category;
+        }
+
+        // 3. Cache files list and restore selection if cached
+        if (Array.isArray(engine.files)) {
+          const cachedFilesMap = new Map<number, CachedFileMetadata>();
+          if (meta.files) {
+            meta.files.forEach((f) => cachedFilesMap.set(f.index, f));
+          }
+
+          meta.files = engine.files.map((file: any, index: number) => {
+            const cached = cachedFilesMap.get(index);
+            // If we had cached file selection, apply it to the engine
+            if (cached && typeof cached.selected === 'boolean') {
+              if (cached.selected) {
+                if (typeof file.select === 'function') file.select();
+                file.selected = true;
+              } else {
+                if (typeof file.deselect === 'function') file.deselect();
+                file.selected = false;
+              }
+            }
+
+            return {
+              index,
+              name: file.name,
+              path: file.path || file.name,
+              length: file.length || 0,
+              selected: file.selected !== false
+            };
+          });
+        }
+
+        // 4. Restore paused state if it was paused
+        if (meta.paused) {
+          pauseTorrent(engine);
+        }
+
+        await this.save();
+      } catch (err: any) {
+        console.error(`[Store] Error during ready handler for ${meta.infoHash}:`, err.message);
+      }
+    });
+
+    let lastSaveTime = 0;
+    const throttledSave = () => {
+      const now = Date.now();
+      if (now - lastSaveTime >= 15000) {
+        lastSaveTime = now;
+        const currentDownloaded = (engine as any)._maxDownloadedBytes;
+        if (typeof currentDownloaded === 'number' && currentDownloaded > (meta.downloadedBytes || 0)) {
+          meta.downloadedBytes = currentDownloaded;
+        }
+        this.save().catch(() => {});
+      }
+    };
+
+    engine.on('verify', () => {
+      if (engine.torrent && engine.bitfield && (engine as any).pieces) {
+        const totalPieces = engine.torrent.pieces?.length || 0;
+        const pieceLength = engine.torrent.pieceLength || 0;
+        let verifiedPieces = 0;
+        for (let i = 0; i < totalPieces; i++) {
+          if (engine.bitfield.get(i)) verifiedPieces++;
+        }
+        const verifiedBytes = pieceLength > 0 ? verifiedPieces * pieceLength : 0;
+        (engine as any)._maxDownloadedBytes = Math.max((engine as any)._maxDownloadedBytes || 0, verifiedBytes);
+      }
+      throttledSave();
+    });
+
+    engine.on('download', () => {
+      throttledSave();
+    });
+
+    engine.on('finished', async () => {
+      meta.isFullyDownloaded = true;
+      meta.downloadedBytes = meta.length || engine.torrent?.length || meta.downloadedBytes;
+      await this.save();
+    });
+  }
+
   private async loadTorrent(meta: StoredTorrentMetadata): Promise<void> {
     try {
       const torrentFilePath = path.join(this.torrentsDir, `${meta.infoHash}.torrent`);
@@ -133,6 +262,18 @@ export class TorrentStore extends EventEmitter {
       });
 
       engine.infoHash = meta.infoHash;
+      if (meta.downloadedBytes) {
+        (engine as any)._maxDownloadedBytes = meta.downloadedBytes;
+      }
+      if (meta.paused) {
+        (engine as any).isPaused = true;
+      }
+      if (meta.category) {
+        engine.category = meta.category;
+      }
+
+      this.attachEngineReadyHandler(engine, meta);
+
       this.torrents.set(meta.infoHash, engine);
       this.emit('torrent', meta.infoHash, engine);
     } catch (err: any) {
@@ -151,10 +292,23 @@ export class TorrentStore extends EventEmitter {
     const meta: StoredTorrentMetadata = {
       infoHash,
       name: parsed.name,
+      length: parsed.length,
       addedAt: Date.now(),
       pinned: false,
       magnet: typeof source === 'string' && source.startsWith('magnet:') ? source : undefined
     };
+
+    if (parsed.files && parsed.files.length > 0) {
+      const category = classifyTorrent(parsed.files as any);
+      meta.category = category;
+      meta.files = parsed.files.map((f: any, index: number) => ({
+        index,
+        name: f.name,
+        path: f.path || f.name,
+        length: f.length || 0,
+        selected: shouldSelectFile(category, f)
+      }));
+    }
 
     if (Buffer.isBuffer(source)) {
       try {
@@ -171,15 +325,10 @@ export class TorrentStore extends EventEmitter {
     });
 
     engine.infoHash = infoHash;
+    this.attachEngineReadyHandler(engine, meta);
+
     this.torrents.set(infoHash, engine);
     this.metadata.set(infoHash, meta);
-
-    engine.once('ready', () => {
-      if (engine.torrent?.name && !meta.name) {
-        meta.name = engine.torrent.name;
-        this.save();
-      }
-    });
 
     this.emit('torrent', infoHash, engine);
     await this.save();
@@ -256,6 +405,19 @@ export class TorrentStore extends EventEmitter {
   }
 
   public async save(): Promise<void> {
+    // Sync current engine states (downloaded bytes, paused) into metadata before saving
+    for (const [infoHash, meta] of this.metadata.entries()) {
+      const engine = this.torrents.get(infoHash) as any;
+      if (engine) {
+        if (typeof engine._maxDownloadedBytes === 'number' && engine._maxDownloadedBytes > 0) {
+          meta.downloadedBytes = Math.max(meta.downloadedBytes || 0, engine._maxDownloadedBytes);
+        }
+        if (typeof engine.isPaused === 'boolean') {
+          meta.paused = engine.isPaused;
+        }
+      }
+    }
+
     // Chain saves to avoid concurrent writing race conditions
     this.savePromise = this.savePromise.then(async () => {
       const data = Object.fromEntries(this.metadata.entries());

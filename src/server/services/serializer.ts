@@ -43,6 +43,7 @@ export function calculateTorrentStats(engine: TorrentEngine): TorrentStatsDTO {
   }
 
   const totalPieces = engine.torrent.pieces.length;
+  const pieceLength = engine.torrent.pieceLength || 0;
   let verifiedPieces = 0;
 
   if (engine.bitfield && totalPieces > 0) {
@@ -54,7 +55,17 @@ export function calculateTorrentStats(engine: TorrentEngine): TorrentStatsDTO {
   }
 
   const progress = totalPieces > 0 ? verifiedPieces / totalPieces : 0;
-  const downloadedBytes = Math.round(progress * (engine.torrent.length || 0));
+  const rawDownloadedBytes = Math.min(
+    engine.torrent.length || 0,
+    pieceLength > 0 ? verifiedPieces * pieceLength : Math.round(progress * (engine.torrent.length || 0))
+  );
+
+  const engineAny = engine as any;
+  engineAny._maxDownloadedBytes = Math.max(engineAny._maxDownloadedBytes || 0, rawDownloadedBytes);
+  const downloadedBytes = engineAny._maxDownloadedBytes;
+
+  engineAny._statsSeq = (engineAny._statsSeq || 0) + 1;
+  const seq = engineAny._statsSeq;
 
   let eta = 0;
   if (downSpeed > 0 && engine.torrent.length) {
@@ -74,7 +85,9 @@ export function calculateTorrentStats(engine: TorrentEngine): TorrentStatsDTO {
     peers: {
       total: totalPeers,
       unchoked: unchokedPeers
-    }
+    },
+    seq,
+    paused: Boolean(engineAny.isPaused)
   };
 }
 
@@ -114,21 +127,65 @@ export function serializeTorrent(
   const pinned = metadata?.pinned ?? false;
 
   if (!ready || !engine.torrent || !engine.files) {
-    const defaultCategory: TorrentCategory = engine.category || 'other';
+    const defaultCategory: TorrentCategory = metadata?.category || engine.category || 'other';
+    const totalLength = metadata?.length || engine.torrent?.length || 0;
+    const downloadedBytes = Math.max(stats.downloaded, metadata?.downloadedBytes || 0);
+    const progressVal = totalLength > 0 ? Math.min(1, downloadedBytes / totalLength) : stats.progress;
+    const downloadedPercentage = Math.min(100, Math.round(progressVal * 1000) / 10);
+    const isFullyDownloaded = metadata?.isFullyDownloaded ?? (progressVal >= 0.9999);
+
+    let cachedFilesDTO: TorrentFileDTO[] = [];
+    if (metadata?.files && metadata.files.length > 0) {
+      let defaultSubtitleUrl: string | undefined;
+      metadata.files.forEach((f) => {
+        const cat = classifyFile(f.path || f.name);
+        if (cat === 'subtitle' && !defaultSubtitleUrl) {
+          defaultSubtitleUrl = `/torrents/${infoHash}/subtitles/${f.index}`;
+        }
+      });
+
+      cachedFilesDTO = metadata.files.map((file) => {
+        const filePath = file.path || file.name;
+        const cat = classifyFile(filePath);
+        const dirname = path.dirname(filePath);
+        const folderPath = dirname === '.' ? '' : dirname;
+
+        return {
+          index: file.index,
+          name: file.name,
+          path: filePath,
+          folderPath,
+          length: file.length,
+          selected: file.selected !== false,
+          category: cat,
+          isComplete: isFullyDownloaded,
+          streamUrl: `/torrents/${infoHash}/files/${file.index}`,
+          downloadUrl: `/torrents/${infoHash}/files/${file.index}?download=1`,
+          subtitleUrl: cat === 'video' ? defaultSubtitleUrl : undefined
+        };
+      });
+    }
+
     return {
       infoHash,
       name: metadata?.name || engine.torrent?.name || infoHash,
-      length: engine.torrent?.length || 0,
+      length: totalLength,
       ready: false,
       interested: false,
       pinned,
+      paused: Boolean((engine as any).isPaused || metadata?.paused),
       addedAt,
       category: defaultCategory,
-      isFullyDownloaded: false,
-      downloadedPercentage: 0,
-      progress: [0],
-      stats,
-      files: []
+      isFullyDownloaded,
+      downloadedPercentage,
+      progress: [progressVal],
+      stats: {
+        ...stats,
+        downloaded: downloadedBytes,
+        progress: progressVal,
+        paused: Boolean((engine as any).isPaused || metadata?.paused)
+      },
+      files: cachedFilesDTO
     };
   }
 
@@ -181,7 +238,7 @@ export function serializeTorrent(
   const isFullyDownloaded =
     selectedTotal > 0 ? selectedCompleted === selectedTotal : stats.progress >= 0.9999;
 
-  const downloadedPercentage = Math.round(stats.progress * 100);
+  const downloadedPercentage = Math.min(100, Math.round(stats.progress * 1000) / 10);
 
   return {
     infoHash,
@@ -190,6 +247,7 @@ export function serializeTorrent(
     ready: true,
     interested: true,
     pinned,
+    paused: Boolean((engine as any).isPaused),
     addedAt,
     category: torrentCategory,
     isFullyDownloaded,
