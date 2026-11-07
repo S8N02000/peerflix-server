@@ -53,6 +53,9 @@ export interface ServerDiskStatsDTO {
   freeBytes: number;
   usedBytes: number;
   usedPercent: number;
+  peerflixUsedBytes?: number;
+  maxQuotaBytes?: number;
+  quotaPercent?: number;
 }
 
 export interface SystemStatusDTO {

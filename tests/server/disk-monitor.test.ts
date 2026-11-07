@@ -46,23 +46,29 @@ describe('DiskMonitor Service', () => {
     expect(result.allowed).toBe(false);
   });
 
-  it('should enforce MAX_DISK_QUOTA_GB when defined', async () => {
-    // 200 GB quota, 150 GB currently used, 500 GB total free disk
+  it('should enforce MAX_DISK_QUOTA_GB on Peerflix used storage, regardless of host used disk', async () => {
+    // 200 GB quota, host has 380 GB used by other apps, but Peerflix only has 150 GB used, 500 GB free disk
     const monitor = new DiskMonitor('/mock/path', 2048, 200);
 
     vi.spyOn(monitor, 'getDiskStats').mockResolvedValue({
       totalBytes: 1000 * 1024 * 1024 * 1024,
       freeBytes: 500 * 1024 * 1024 * 1024,
-      usedBytes: 150 * 1024 * 1024 * 1024,
-      usedPercent: 15
+      usedBytes: 380 * 1024 * 1024 * 1024, // Host OS & other apps
+      usedPercent: 38,
+      peerflixUsedBytes: 150 * 1024 * 1024 * 1024, // Peerflix downloads only
+      maxQuotaBytes: 200 * 1024 * 1024 * 1024,
+      quotaPercent: 75
     });
 
-    // 40 GB torrent -> 150 + 40 = 190 GB <= 200 GB -> Allowed
+    // 40 GB torrent -> Peerflix uses 150 + 40 = 190 GB <= 200 GB -> Allowed
     const fortyGb = 40 * 1024 * 1024 * 1024;
-    expect((await monitor.canFitTorrent(fortyGb)).allowed).toBe(true);
+    const resAllowed = await monitor.canFitTorrent(fortyGb);
+    expect(resAllowed.allowed).toBe(true);
 
-    // 60 GB torrent -> 150 + 60 = 210 GB > 200 GB -> Rejected by quota
+    // 60 GB torrent -> Peerflix uses 150 + 60 = 210 GB > 200 GB -> Rejected by quota
     const sixtyGb = 60 * 1024 * 1024 * 1024;
-    expect((await monitor.canFitTorrent(sixtyGb)).allowed).toBe(false);
+    const resRejected = await monitor.canFitTorrent(sixtyGb);
+    expect(resRejected.allowed).toBe(false);
+    expect(resRejected.reason).toBe('PEERFLIX_QUOTA_EXCEEDED');
   });
 });

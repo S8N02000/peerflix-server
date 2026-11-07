@@ -25,7 +25,9 @@ const handleCleanClick = () => {
 };
 
 const diskClass = computed(() => {
-  const percent = props.systemStatus?.disk?.usedPercent ?? 0;
+  const disk = props.systemStatus?.disk;
+  if (!disk) return 'disk-normal';
+  const percent = typeof disk.quotaPercent === 'number' ? disk.quotaPercent : disk.usedPercent ?? 0;
   if (percent >= 90) return 'disk-danger';
   if (percent >= 75) return 'disk-warning';
   return 'disk-normal';
@@ -34,10 +36,20 @@ const diskClass = computed(() => {
 const formattedStorage = computed(() => {
   const disk = props.systemStatus?.disk;
   if (!disk) return 'Stockage : Inconnu';
+
+  // If a quota is set for Peerflix, display Peerflix storage clearly
+  if (typeof disk.maxQuotaBytes === 'number' && disk.maxQuotaBytes > 0) {
+    const peerflixUsed = formatBytes(disk.peerflixUsedBytes ?? 0);
+    const quota = formatBytes(disk.maxQuotaBytes);
+    const freeHost = formatBytes(disk.freeBytes);
+    const percent = disk.quotaPercent ?? 0;
+    return `Peerflix : ${peerflixUsed} / ${quota} (${freeHost} libres) ${percent}%`;
+  }
+
   const used = formatBytes(disk.usedBytes);
   const total = formatBytes(disk.totalBytes);
   const free = formatBytes(disk.freeBytes);
-  return `Stockage : ${used} / ${total} (${free} libres)`;
+  return `Stockage : ${used} / ${total} (${free} libres) ${disk.usedPercent}%`;
 });
 
 const copyPlaylistUrl = async () => {
