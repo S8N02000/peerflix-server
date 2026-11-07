@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import QRCode from 'qrcode';
-import type { TorrentFileDTO, TorrentDTO } from '../../shared/types.js';
+import type { TorrentFileDTO, TorrentDTO, SystemStatusDTO } from '../../shared/types.js';
+import { getExternalBaseUrl } from '../utils/auth-url.js';
 
 const props = defineProps<{
   file: TorrentFileDTO;
   torrent: TorrentDTO;
+  systemStatus?: SystemStatusDTO | null;
 }>();
 
 const emit = defineEmits<{
@@ -16,10 +18,8 @@ const qrCanvasRef = ref<HTMLCanvasElement | null>(null);
 const copied = ref(false);
 
 const fullStreamUrl = computed(() => {
-  if (typeof window !== 'undefined') {
-    return `${window.location.origin}${props.file.streamUrl}`;
-  }
-  return props.file.streamUrl;
+  const baseUrl = getExternalBaseUrl(props.systemStatus);
+  return `${baseUrl}${props.file.streamUrl}`;
 });
 
 onMounted(async () => {

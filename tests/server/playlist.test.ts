@@ -104,4 +104,46 @@ describe('M3U Playlists (per-torrent and global TV playlist)', () => {
     expect(m3uText).not.toContain('info.nfo');
     expect(m3uText).not.toContain('cover.jpg');
   });
+
+  it('should generate M3U playlists using cached metadata when engine.ready is false (reboot fallback)', async () => {
+    const unreadyHash = '3333333333333333333333333333333333333333';
+    const unreadyEngine: any = {
+      infoHash: unreadyHash,
+      ready: false,
+      torrent: null,
+      files: [],
+      swarm: { wires: [], downloadSpeed: () => 0 }
+    };
+
+    (store as any).torrents.set(unreadyHash, unreadyEngine);
+    (store as any).metadata.set(unreadyHash, {
+      infoHash: unreadyHash,
+      name: 'Oppenheimer 2023',
+      addedAt: 3,
+      pinned: false,
+      files: [
+        { index: 0, name: 'Oppenheimer.2160p.mkv', path: 'Oppenheimer.2160p.mkv', length: 10000, selected: true },
+        { index: 1, name: 'bonus.mp4', path: 'bonus.mp4', length: 500, selected: true },
+        { index: 2, name: 'readme.txt', path: 'readme.txt', length: 10, selected: false }
+      ]
+    });
+
+    // Test per-torrent M3U
+    const resTorrent = await request(app).get(`/torrents/${unreadyHash}/files`);
+    expect(resTorrent.status).toBe(200);
+    const textTorrent = resTorrent.text || resTorrent.body.toString('utf-8');
+    expect(textTorrent).toContain('Oppenheimer.2160p.mkv');
+    expect(textTorrent).toContain(`/torrents/${unreadyHash}/files/0`);
+    expect(textTorrent).toContain('bonus.mp4');
+    expect(textTorrent).toContain(`/torrents/${unreadyHash}/files/1`);
+    expect(textTorrent).not.toContain('readme.txt');
+
+    // Test global /playlist.m3u
+    const resGlobal = await request(app).get('/playlist.m3u');
+    expect(resGlobal.status).toBe(200);
+    const textGlobal = resGlobal.text || resGlobal.body.toString('utf-8');
+    expect(textGlobal).toContain('#EXTGRP:Oppenheimer 2023');
+    expect(textGlobal).toContain('Oppenheimer.2160p.mkv');
+    expect(textGlobal).toContain(`/torrents/${unreadyHash}/files/0`);
+  });
 });

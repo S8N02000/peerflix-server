@@ -4,6 +4,7 @@ import { defaultDiskMonitor, type DiskMonitor } from '../services/disk-monitor.j
 import { defaultScheduler, type AutoCleanScheduler } from '../services/scheduler.js';
 import type { SystemStatusDTO } from '../../shared/types.js';
 import { classifyFile } from '../services/classifier.js';
+import { getAuthenticatedBaseUrl } from '../utils/auth-url.js';
 
 export function createSystemRouter(
   store: TorrentStore,
@@ -29,7 +30,8 @@ export function createSystemRouter(
       const status: SystemStatusDTO = {
         disk: diskStats,
         nextCleanAt,
-        totalDownSpeed
+        totalDownSpeed,
+        authenticatedOrigin: getAuthenticatedBaseUrl(req)
       };
 
       res.json(status);
@@ -54,16 +56,15 @@ export function createSystemRouter(
 
   // GET /playlist.m3u (Global M3U TV playlist for Kodi / VLC / Apple TV / Android TV)
   router.get('/playlist.m3u', (req: Request, res: Response) => {
-    const host = req.get('host');
-    const protocol = req.protocol;
-    const baseUrl = `${protocol}://${host}`;
+    const baseUrl = getAuthenticatedBaseUrl(req);
 
     let m3u = '#EXTM3U\n';
 
     for (const engine of store.list()) {
-      if (engine.ready && engine.torrent && engine.files) {
-        const torrentGroup = (engine.torrent.name || engine.infoHash).replace(/[\r\n]+/g, ' ').trim();
+      const meta = store.getMetadata(engine.infoHash);
+      const torrentGroup = (meta?.name || engine.torrent?.name || engine.infoHash).replace(/[\r\n]+/g, ' ').trim();
 
+      if (engine.ready && engine.torrent && engine.files) {
         engine.files.forEach((file: any, index: number) => {
           const category = classifyFile(file.path || file.name);
           if (category === 'video' || category === 'audio') {
@@ -71,6 +72,16 @@ export function createSystemRouter(
             m3u += `#EXTINF:-1 group-title="${torrentGroup}",${cleanName}\n`;
             m3u += `#EXTGRP:${torrentGroup}\n`;
             m3u += `${baseUrl}/torrents/${engine.infoHash}/files/${index}\n`;
+          }
+        });
+      } else if (meta?.files && meta.files.length > 0) {
+        meta.files.forEach((file) => {
+          const category = classifyFile(file.path || file.name);
+          if (category === 'video' || category === 'audio') {
+            const cleanName = (file.name || 'track').replace(/[\r\n]+/g, ' ').trim();
+            m3u += `#EXTINF:-1 group-title="${torrentGroup}",${cleanName}\n`;
+            m3u += `#EXTGRP:${torrentGroup}\n`;
+            m3u += `${baseUrl}/torrents/${engine.infoHash}/files/${file.index}\n`;
           }
         });
       }

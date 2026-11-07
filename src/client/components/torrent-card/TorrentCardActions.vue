@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import type { TorrentDTO, TorrentFileDTO } from '../../../shared/types.js';
+import type { TorrentDTO, TorrentFileDTO, SystemStatusDTO } from '../../../shared/types.js';
+import { getExternalBaseUrl } from '../../utils/auth-url.js';
 
 const props = defineProps<{
   torrent: TorrentDTO;
+  systemStatus?: SystemStatusDTO | null;
   isExpanded: boolean;
 }>();
 
@@ -29,10 +31,10 @@ const nfoFile = computed(() => {
 const copiedLinks = ref(false);
 
 const copyAllDownloadLinks = async () => {
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const baseUrl = getExternalBaseUrl(props.systemStatus);
   const urls = props.torrent.files
     .filter((f) => f.selected !== false)
-    .map((f) => `${origin}${f.downloadUrl}`)
+    .map((f) => `${baseUrl}${f.downloadUrl}`)
     .join('\n');
 
   try {
@@ -49,18 +51,29 @@ const copyAllDownloadLinks = async () => {
 
 <template>
   <div class="actions-bar">
-    <!-- Main Action: Play Video or Download Zip -->
+    <!-- Main Action: Play Video if available -->
     <button
       v-if="torrent.category === 'video' && mainVideoFile"
       type="button"
       class="btn-main-action play"
       @click="emit('play-media', mainVideoFile, torrent)"
     >
-      ▶ Regarder le film / la série
+      ▶ Regarder
     </button>
 
+    <!-- Direct file download if single main video -->
     <a
-      v-else
+      v-if="torrent.category === 'video' && mainVideoFile"
+      :href="mainVideoFile.downloadUrl"
+      class="btn-main-action download-file"
+      download
+      title="Télécharger directement le fichier vidéo principal"
+    >
+      ⬇ Télécharger
+    </a>
+
+    <!-- ZIP download always available -->
+    <a
       :href="`/torrents/${torrent.infoHash}/archive`"
       class="btn-main-action download-zip"
       title="Télécharger l'intégralité du torrent en archive ZIP rapide"
@@ -72,7 +85,8 @@ const copyAllDownloadLinks = async () => {
     <a
       :href="`/torrents/${torrent.infoHash}/files`"
       class="btn-m3u"
-      title="Ouvrir le flux direct dans VLC ou Kodi"
+      download
+      title="Télécharger la playlist M3U pour lancer tout le torrent dans VLC ou Kodi"
     >
       📺 Playlist VLC (.m3u)
     </a>
@@ -140,6 +154,16 @@ const copyAllDownloadLinks = async () => {
 }
 .btn-main-action.play:hover {
   background: #059669;
+}
+
+.btn-main-action.download-file {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+.btn-main-action.download-file:hover {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.35);
 }
 
 .btn-main-action.download-zip {

@@ -41,13 +41,6 @@ const onCheckboxChange = (file: TorrentFileDTO, e: Event) => {
     emit('deselect-file', file.index);
   }
 };
-
-const getVlcUrl = (streamUrl: string): string => {
-  if (typeof window !== 'undefined' && window.location) {
-    return `vlc://${window.location.origin}${streamUrl}`;
-  }
-  return `vlc://${streamUrl}`;
-};
 </script>
 
 <template>
@@ -112,9 +105,10 @@ const getVlcUrl = (streamUrl: string): string => {
             ▶ {{ node.file.category === 'video' ? 'Regarder' : 'Écouter' }}
           </button>
           <a
-            :href="getVlcUrl(node.file.streamUrl)"
+            :href="`/torrents/${infoHash}/files/${node.file.index}/vlc.m3u`"
             class="btn-action vlc"
-            title="Ouvrir directement dans le lecteur VLC"
+            download
+            title="Télécharger la playlist M3U pour lancer instantanément dans VLC (PC / Mac / Mobile)"
           >
             🟠 VLC
           </a>

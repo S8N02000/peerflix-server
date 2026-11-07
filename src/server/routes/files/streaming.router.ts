@@ -9,6 +9,7 @@ import {
   encodeContentDisposition,
   findTorrentFile,
 } from './files.utils.js';
+import { getAuthenticatedBaseUrl } from '../../utils/auth-url.js';
 
 export function createStreamingRouter(store: TorrentStore): Router {
   const router = Router();
@@ -108,6 +109,49 @@ export function createStreamingRouter(store: TorrentStore): Router {
       }
     });
   };
+
+  // GET /torrents/:infoHash/files/:fileParam/vlc.m3u
+  router.get('/torrents/:infoHash/files/:fileParam/vlc.m3u', (req: Request, res: Response) => {
+    const { infoHash, fileParam } = req.params;
+    const engine = store.get(infoHash);
+    const meta = store.getMetadata(infoHash);
+
+    if (!engine && !meta) {
+      res.status(404).json({ error: 'NotFound', message: 'Torrent not found' });
+      return;
+    }
+
+    let fileName = '';
+    let fileIndex: string | number = fileParam;
+
+    const file = engine ? findTorrentFile(engine, fileParam) : undefined;
+    if (file) {
+      fileName = file.name;
+      fileIndex = file.index !== undefined ? file.index : fileParam;
+    } else if (meta?.files && meta.files.length > 0) {
+      const idx = parseInt(fileParam, 10);
+      const cached = !isNaN(idx) ? meta.files.find((f) => f.index === idx) : meta.files.find((f) => f.name === fileParam);
+      if (cached) {
+        fileName = cached.name;
+        fileIndex = cached.index;
+      }
+    }
+
+    if (!fileName) {
+      res.status(404).json({ error: 'NotFound', message: 'File not found in torrent' });
+      return;
+    }
+
+    const baseUrl = getAuthenticatedBaseUrl(req);
+    const directStreamUrl = `${baseUrl}/torrents/${infoHash}/files/${fileIndex}`;
+
+    const m3uContent = `#EXTM3U\n#EXTINF:-1,${fileName}\n${directStreamUrl}\n`;
+    const cleanFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+
+    res.setHeader('Content-Type', 'audio/x-mpegurl; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${cleanFileName}.m3u"`);
+    res.send(m3uContent);
+  });
 
   router.get('/torrents/:infoHash/files/:fileParam', handleFileRequest);
   router.head('/torrents/:infoHash/files/:fileParam', handleFileRequest);

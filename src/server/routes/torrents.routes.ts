@@ -4,6 +4,7 @@ import type { TorrentStore } from '../services/store.js';
 import { TorrentParserError, SecurityError } from '../services/torrent-parser.js';
 import { serializeTorrent, calculateTorrentStats } from '../services/serializer.js';
 import { classifyFile } from '../services/classifier.js';
+import { getAuthenticatedBaseUrl } from '../utils/auth-url.js';
 
 export function createTorrentsRouter(store: TorrentStore): Router {
   const router = Router();
@@ -64,35 +65,40 @@ export function createTorrentsRouter(store: TorrentStore): Router {
   router.get('/torrents/:infoHash/files', (req: Request, res: Response) => {
     const { infoHash } = req.params;
     const engine = store.get(infoHash);
+    const meta = store.getMetadata(infoHash);
 
-    if (!engine) {
+    if (!engine && !meta) {
       res.status(404).json({ error: 'NotFound', message: 'Torrent not found' });
       return;
     }
 
-    if (!engine.ready || !engine.torrent) {
+    const baseUrl = getAuthenticatedBaseUrl(req);
+    let m3u = '#EXTM3U\n';
+    const torrentName = (meta?.name || engine?.torrent?.name || infoHash).replace(/[\r\n]+/g, ' ').trim();
+
+    if (engine && engine.ready && engine.files) {
+      engine.files.forEach((file: any, index: number) => {
+        const category = classifyFile(file.path || file.name);
+        if (category === 'video' || category === 'audio') {
+          const cleanName = (file.name || 'track').replace(/[\r\n]+/g, ' ').trim();
+          m3u += `#EXTINF:-1,${cleanName}\n`;
+          m3u += `${baseUrl}/torrents/${infoHash}/files/${index}\n`;
+        }
+      });
+    } else if (meta?.files && meta.files.length > 0) {
+      meta.files.forEach((file) => {
+        const category = classifyFile(file.path || file.name);
+        if (category === 'video' || category === 'audio') {
+          const cleanName = (file.name || 'track').replace(/[\r\n]+/g, ' ').trim();
+          m3u += `#EXTINF:-1,${cleanName}\n`;
+          m3u += `${baseUrl}/torrents/${infoHash}/files/${file.index}\n`;
+        }
+      });
+    } else {
       res.status(409).json({ error: 'Conflict', message: 'Metadata not ready yet' });
       return;
     }
 
-    const host = req.get('host');
-    const protocol = req.protocol;
-    const baseUrl = `${protocol}://${host}`;
-
-    let m3u = '#EXTM3U\n';
-    let mediaCount = 0;
-
-    engine.files.forEach((file: any, index: number) => {
-      const category = classifyFile(file.path || file.name);
-      if (category === 'video' || category === 'audio') {
-        mediaCount++;
-        const cleanName = (file.name || 'track').replace(/[\r\n]+/g, ' ').trim();
-        m3u += `#EXTINF:-1,${cleanName}\n`;
-        m3u += `${baseUrl}/torrents/${infoHash}/files/${index}\n`;
-      }
-    });
-
-    const torrentName = (engine.torrent.name || infoHash).replace(/[\r\n]+/g, ' ').trim();
     res.setHeader('Content-Type', 'audio/x-mpegurl; charset=utf-8');
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(torrentName)}.m3u"`);
     res.send(m3u);
