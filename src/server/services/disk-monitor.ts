@@ -101,7 +101,7 @@ export class DiskMonitor {
           );
           await store.remove(infoHash);
           if (io && typeof io.emit === 'function') {
-            io.emit('error', {
+            io.emit('diskError', {
               infoHash,
               message: 'Espace disque insuffisant sur le serveur'
             });

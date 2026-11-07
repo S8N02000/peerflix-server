@@ -198,6 +198,10 @@ export function useTorrents() {
     socket.on('clean', () => {
       loadTorrents();
     });
+
+    socket.on('diskError', (data: { infoHash: string; message: string }) => {
+      errorMessage.value = data.message;
+    });
   };
 
   const loadTorrents = async () => {
