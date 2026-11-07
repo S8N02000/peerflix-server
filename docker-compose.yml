@@ -1,0 +1,28 @@
+services:
+  peerflix-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: peerflix-server:latest
+    container_name: peerflix-server
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      - PORT=9000
+      - PEERFLIX_CONFIG_PATH=/data/config
+      - PEERFLIX_DOWNLOAD_PATH=/data/downloads
+      - MIN_FREE_DISK_MB=2048
+      - AUTO_CLEAN_ENABLED=true
+      - AUTO_CLEAN_DAY=1
+      - AUTO_CLEAN_HOUR=9
+      - AUTO_CLEAN_MINUTE=0
+    volumes:
+      - ./data/config:/data/config
+      - ./data/downloads:/data/downloads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/system/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
