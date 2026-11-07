@@ -88,6 +88,8 @@ describe('Media Prober & Audio Remux Service', () => {
   it('should handle /probe and /remux error states gracefully when torrent or file not found', async () => {
     const mockStore: any = {
       get: vi.fn().mockReturnValue(null),
+      getMetadata: vi.fn().mockReturnValue(undefined),
+      getDownloadPath: vi.fn().mockReturnValue('/tmp'),
       list: vi.fn().mockReturnValue([]),
       on: vi.fn()
     };

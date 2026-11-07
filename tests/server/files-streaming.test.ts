@@ -125,4 +125,95 @@ describe('HTTP Streaming and Secure Download routes', () => {
     expect(exeRes.headers['content-security-policy']).toContain('sandbox');
     expect(exeRes.headers['content-disposition']).toContain('attachment');
   });
+
+  it('should stream directly from disk if engine is not ready (!engine.ready)', async () => {
+    const unreadyHash = '1111111111222222222233333333334444444444';
+    const torrentDlDir = path.join(tempDownloadDir, unreadyHash);
+    await fs.mkdir(torrentDlDir, { recursive: true });
+    await fs.writeFile(path.join(torrentDlDir, 'complete.mp4'), Buffer.from('DISK_STREAM_CONTENT_12345'));
+
+    // Engine is NOT ready
+    const unreadyEngine: any = {
+      infoHash: unreadyHash,
+      ready: false,
+      torrent: null,
+      files: []
+    };
+    (store as any).torrents.set(unreadyHash, unreadyEngine);
+    (store as any).metadata.set(unreadyHash, {
+      infoHash: unreadyHash,
+      name: 'Unready Movie',
+      addedAt: 1,
+      pinned: false,
+      files: [
+        { index: 0, name: 'complete.mp4', path: 'complete.mp4', length: 25, selected: true }
+      ]
+    });
+
+    const res = await request(app).get(`/torrents/${unreadyHash}/files/0`);
+    expect(res.status).toBe(200);
+    expect(res.body.toString('utf-8')).toBe('DISK_STREAM_CONTENT_12345');
+    expect(res.headers['content-length']).toBe('25');
+  });
+
+  it('should reject subtitle requests with 413 PayloadTooLarge if file > 10MB', async () => {
+    const hugeSubFile = {
+      name: 'huge.srt',
+      path: 'huge.srt',
+      length: 15 * 1024 * 1024, // 15MB
+      createReadStream: () => Readable.from([])
+    };
+    const engineWithHugeSub: any = {
+      infoHash: testHash,
+      ready: true,
+      torrent: { name: 'Sub Test', pieces: [] },
+      files: [hugeSubFile]
+    };
+    (store as any).torrents.set(testHash, engineWithHugeSub);
+
+    const res = await request(app).get(`/torrents/${testHash}/subtitles/0`);
+    expect(res.status).toBe(413);
+    expect(res.body.error).toBe('PayloadTooLarge');
+  });
+
+  it('should dynamically select bitfield pieces with high priority (10) on Range request seek', async () => {
+    let selectedPieces: any = null;
+    const seekableFile = {
+      name: 'movie.mp4',
+      path: 'movie.mp4',
+      length: 10000000,
+      offset: 500000,
+      createReadStream: (range?: { start?: number; end?: number }) => {
+        return Readable.from([Buffer.alloc((range?.end ?? 999) - (range?.start ?? 0) + 1)]);
+      }
+    };
+
+    const activeEngine: any = {
+      infoHash: testHash,
+      ready: true,
+      torrent: {
+        name: 'Seekable Movie',
+        pieceLength: 100000,
+        pieces: new Array(150).fill(0)
+      },
+      files: [seekableFile],
+      select: (from: number, to: number, priority: number) => {
+        selectedPieces = { from, to, priority };
+      }
+    };
+    (store as any).torrents.set(testHash, activeEngine);
+
+    // Seek at byte 250000 of the file -> offset (500000) + 250000 = 750000 -> piece = 7
+    const res = await request(app)
+      .get(`/torrents/${testHash}/files/0`)
+      .set('Range', 'bytes=250000-299999');
+
+    expect(res.status).toBe(206);
+    expect(selectedPieces).toEqual({
+      from: 7,
+      to: 12, // targetStartPiece (7) + 5
+      priority: 10
+    });
+  });
 });
+

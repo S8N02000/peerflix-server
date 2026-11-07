@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import type { TorrentStore } from '../../services/store.js';
-import { findTorrentFile } from './files.utils.js';
+import { findTorrentFile, resolvePlayableFile } from './files.utils.js';
 import { probeMediaStream, mediaProbeCache } from '../../services/media-prober.js';
 import { isFileComplete } from '../../services/serializer.js';
 
@@ -22,19 +22,19 @@ export function createRemuxRouter(store: TorrentStore): Router {
     }
 
     const engine = store.get(infoHash);
+    const meta = store.getMetadata(infoHash);
 
-    if (!engine) {
+    if (!engine && !meta) {
       res.status(404).json({ error: 'NotFound', message: 'Torrent not found' });
       return;
     }
 
-    if (!engine.ready || !engine.torrent) {
-      res.status(409).json({ error: 'Conflict', message: 'Metadata not ready yet' });
-      return;
-    }
-
-    const file = findTorrentFile(engine, fileParam);
+    const file = resolvePlayableFile(store, infoHash, fileParam);
     if (!file) {
+      if (engine && (!engine.ready || !engine.torrent)) {
+        res.status(409).json({ error: 'Conflict', message: 'Metadata not ready yet' });
+        return;
+      }
       res.status(404).json({ error: 'NotFound', message: 'File not found in torrent' });
       return;
     }
@@ -60,18 +60,18 @@ export function createRemuxRouter(store: TorrentStore): Router {
     const startSeconds = isNaN(startParam) || startParam < 0 ? 0 : startParam;
 
     const engine = store.get(infoHash);
-    if (!engine) {
+    const meta = store.getMetadata(infoHash);
+    if (!engine && !meta) {
       res.status(404).json({ error: 'NotFound', message: 'Torrent not found' });
       return;
     }
 
-    if (!engine.ready || !engine.torrent) {
-      res.status(409).json({ error: 'Conflict', message: 'Metadata not ready yet' });
-      return;
-    }
-
-    const file = findTorrentFile(engine, fileParam);
+    const file = resolvePlayableFile(store, infoHash, fileParam);
     if (!file) {
+      if (engine && (!engine.ready || !engine.torrent)) {
+        res.status(409).json({ error: 'Conflict', message: 'Metadata not ready yet' });
+        return;
+      }
       res.status(404).json({ error: 'NotFound', message: 'File not found in torrent' });
       return;
     }
@@ -81,10 +81,13 @@ export function createRemuxRouter(store: TorrentStore): Router {
     res.setHeader('Transfer-Encoding', 'chunked');
     res.setHeader('X-Content-Type-Options', 'nosniff');
 
-    const localFilePath = path.join(store.getDownloadPath(), infoHash, file.path || file.name);
+    const localFilePath = (file as any).diskPath || path.join(store.getDownloadPath(), infoHash, file.path || file.name);
     let useDirectFile = false;
     try {
-      if (fsSync.existsSync(localFilePath) && isFileComplete(file, engine)) {
+      if (
+        fsSync.existsSync(localFilePath) &&
+        ((file as any).isDiskFallback || (engine && isFileComplete(file, engine)))
+      ) {
         useDirectFile = true;
       }
     } catch {

@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import type { TorrentStore } from '../../services/store.js';
 import { srtToVtt } from '../../utils/srt-to-vtt.js';
-import { findTorrentFile } from './files.utils.js';
+import { findTorrentFile, resolvePlayableFile } from './files.utils.js';
 
 export function createSubtitlesRouter(store: TorrentStore): Router {
   const router = Router();
@@ -10,20 +10,26 @@ export function createSubtitlesRouter(store: TorrentStore): Router {
   router.get('/torrents/:infoHash/subtitles/:fileParam', (req: Request, res: Response, next: NextFunction) => {
     const { infoHash, fileParam } = req.params;
     const engine = store.get(infoHash);
+    const meta = store.getMetadata(infoHash);
 
-    if (!engine) {
+    if (!engine && !meta) {
       res.status(404).json({ error: 'NotFound', message: 'Torrent not found' });
       return;
     }
 
-    if (!engine.ready || !engine.torrent) {
-      res.status(409).json({ error: 'Conflict', message: 'Metadata not ready yet' });
+    const file = resolvePlayableFile(store, infoHash, fileParam);
+    if (!file) {
+      if (engine && (!engine.ready || !engine.torrent)) {
+        res.status(409).json({ error: 'Conflict', message: 'Metadata not ready yet' });
+        return;
+      }
+      res.status(404).json({ error: 'NotFound', message: 'Subtitle file not found in torrent' });
       return;
     }
 
-    const file = findTorrentFile(engine, fileParam);
-    if (!file) {
-      res.status(404).json({ error: 'NotFound', message: 'Subtitle file not found in torrent' });
+    // Protection anti-OOM: reject files > 10MB (video files or oversized payloads)
+    if (file.length > 10 * 1024 * 1024) {
+      res.status(413).json({ error: 'PayloadTooLarge', message: 'Subtitle file exceeds 10MB limit' });
       return;
     }
 

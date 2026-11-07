@@ -1,4 +1,8 @@
+import fsSync from 'node:fs';
+import path from 'node:path';
 import type { FileCategory } from '../../../shared/types.js';
+import { resolveSafeFilePath } from '../../utils/path-security.js';
+import type { TorrentStore } from '../../services/store.js';
 
 export const MIME_TYPES: Record<string, string> = {
   '.mp4': 'video/mp4',
@@ -67,3 +71,55 @@ export function findTorrentFile(engine: any, fileParam: string): any {
     (f: any) => f.path === fileParam || f.name === fileParam || (f.path && f.path.endsWith(fileParam))
   );
 }
+
+export function resolvePlayableFile(store: TorrentStore, infoHash: string, fileParam: string): any {
+  const engine = store.get(infoHash);
+
+  // 1. If engine is ready and files are available, use engine file
+  if (engine && engine.ready && engine.files) {
+    const file = findTorrentFile(engine, fileParam);
+    if (file) return file;
+  }
+
+  // 2. Fallback: Check metadata cache and disk if engine is not ready or file not found
+  const meta = store.getMetadata(infoHash);
+  if (meta?.files && Array.isArray(meta.files)) {
+    let cachedFile: any = null;
+    if (/^\d+$/.test(fileParam)) {
+      const idx = parseInt(fileParam, 10);
+      cachedFile = meta.files.find((f: any) => f.index === idx) || meta.files[idx];
+    } else {
+      cachedFile = meta.files.find(
+        (f: any) => f.path === fileParam || f.name === fileParam || (f.path && f.path.endsWith(fileParam))
+      );
+    }
+
+    if (cachedFile) {
+      try {
+        const downloadBase = path.join(store.getDownloadPath(), infoHash);
+        const resolvedPath = resolveSafeFilePath(downloadBase, cachedFile.path);
+        if (fsSync.existsSync(resolvedPath)) {
+          const stat = fsSync.statSync(resolvedPath);
+          if (stat.size > 0) {
+            return {
+              name: cachedFile.name,
+              path: cachedFile.path,
+              length: cachedFile.length || stat.size,
+              index: cachedFile.index,
+              isDiskFallback: true,
+              diskPath: resolvedPath,
+              createReadStream: (opts?: { start?: number; end?: number }) => {
+                return fsSync.createReadStream(resolvedPath, opts);
+              }
+            };
+          }
+        }
+      } catch {
+        // Safe path resolution failed or file unreadable on disk
+      }
+    }
+  }
+
+  return null;
+}
+

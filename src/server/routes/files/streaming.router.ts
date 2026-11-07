@@ -8,6 +8,7 @@ import {
   ALWAYS_ATTACHMENT_EXTENSIONS,
   encodeContentDisposition,
   findTorrentFile,
+  resolvePlayableFile,
 } from './files.utils.js';
 import { getAuthenticatedBaseUrl } from '../../utils/auth-url.js';
 
@@ -17,19 +18,20 @@ export function createStreamingRouter(store: TorrentStore): Router {
   const handleFileRequest = (req: Request, res: Response) => {
     const { infoHash, fileParam } = req.params;
     const engine = store.get(infoHash);
+    const meta = store.getMetadata(infoHash);
 
-    if (!engine) {
+    if (!engine && !meta) {
       res.status(404).json({ error: 'NotFound', message: 'Torrent not found' });
       return;
     }
 
-    if (!engine.ready || !engine.torrent) {
-      res.status(409).json({ error: 'Conflict', message: 'Metadata not ready yet' });
-      return;
-    }
-
-    const file = findTorrentFile(engine, fileParam);
+    // Resolve file from engine or fallback to completed file on disk
+    const file = resolvePlayableFile(store, infoHash, fileParam);
     if (!file) {
+      if (engine && (!engine.ready || !engine.torrent)) {
+        res.status(409).json({ error: 'Conflict', message: 'Metadata not ready yet' });
+        return;
+      }
       res.status(404).json({ error: 'NotFound', message: 'File not found in torrent' });
       return;
     }
@@ -90,9 +92,30 @@ export function createStreamingRouter(store: TorrentStore): Router {
       return;
     }
 
-    // Satisfiable single range (multi-threading IDM / JDownloader / Safari / Chrome)
+    // Satisfiable single range (multi-threading IDM / JDownloader / Safari / Chrome / VLC)
     const range = parsedRanges[0];
     const chunkLength = range.end - range.start + 1;
+
+    // Dynamic high-priority piece selection on Range seek (if file is streamed through active engine)
+    if (
+      engine &&
+      engine.ready &&
+      engine.torrent?.pieceLength &&
+      typeof (file as any).offset === 'number' &&
+      typeof engine.select === 'function'
+    ) {
+      try {
+        const pieceLength = engine.torrent.pieceLength;
+        const targetStartPiece = Math.floor(((file as any).offset + range.start) / pieceLength);
+        const fileEndPiece = Math.floor(((file as any).offset + file.length - 1) / pieceLength);
+        const priorityEndPiece = Math.min(targetStartPiece + 5, fileEndPiece);
+        if (targetStartPiece <= fileEndPiece) {
+          engine.select(targetStartPiece, priorityEndPiece, 10);
+        }
+      } catch {
+        // Safe fallback if engine selection fails
+      }
+    }
 
     res.status(206);
     res.setHeader('Content-Range', `bytes ${range.start}-${range.end}/${totalLength}`);
