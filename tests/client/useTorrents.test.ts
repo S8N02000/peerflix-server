@@ -102,4 +102,47 @@ describe('useTorrents Composable', () => {
     expect(torrent.isFullyDownloaded).toBe(true);
     expect(torrent.downloadedPercentage).toBe(100);
   });
+
+  it('should sort torrents with pinned items first, then by size, progress, or name', () => {
+    const { torrents, sortBy, filteredTorrents } = useTorrents();
+
+    const t1 = createMockTorrent('hash1', 'Zorro', 'video');
+    t1.length = 1000;
+    t1.addedAt = 10;
+    t1.downloadedPercentage = 10;
+
+    const t2 = createMockTorrent('hash2', 'Avatar', 'video');
+    t2.length = 5000;
+    t2.addedAt = 20;
+    t2.downloadedPercentage = 90;
+
+    const t3 = createMockTorrent('hash3', 'Matrix', 'video');
+    t3.length = 2000;
+    t3.addedAt = 5;
+    t3.downloadedPercentage = 50;
+    t3.pinned = true; // Pinned!
+
+    torrents.value = [t1, t2, t3];
+
+    // Pinned t3 should always be first
+    expect(filteredTorrents.value[0].infoHash).toBe('hash3');
+
+    // Sort by name
+    sortBy.value = 'name';
+    expect(filteredTorrents.value[0].infoHash).toBe('hash3'); // Still pinned
+    expect(filteredTorrents.value[1].name).toBe('Avatar');
+    expect(filteredTorrents.value[2].name).toBe('Zorro');
+
+    // Sort by size
+    sortBy.value = 'size';
+    expect(filteredTorrents.value[0].infoHash).toBe('hash3'); // Still pinned
+    expect(filteredTorrents.value[1].name).toBe('Avatar'); // 5000
+    expect(filteredTorrents.value[2].name).toBe('Zorro'); // 1000
+
+    // Sort by progress
+    sortBy.value = 'progress';
+    expect(filteredTorrents.value[0].infoHash).toBe('hash3'); // Still pinned
+    expect(filteredTorrents.value[1].name).toBe('Avatar'); // 90%
+    expect(filteredTorrents.value[2].name).toBe('Zorro'); // 10%
+  });
 });

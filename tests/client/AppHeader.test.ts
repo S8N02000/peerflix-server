@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import AppHeader from '../../src/client/components/AppHeader.vue';
 import type { SystemStatusDTO } from '../../src/shared/types.js';
@@ -64,5 +64,23 @@ describe('AppHeader.vue Component', () => {
     expect(wrapper.text()).toContain('Nettoyage auto : Lun. 09h00');
     expect(wrapper.find('.btn-playlist').exists()).toBe(true);
     expect(wrapper.find('.btn-copy-playlist').exists()).toBe(true);
+  });
+
+  it('should emit clean-unpinned when clean button is confirmed', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const wrapper = mount(AppHeader, {
+      props: {
+        systemStatus: makeStatus(50)
+      }
+    });
+
+    const cleanBtn = wrapper.find('.clean-badge');
+    await cleanBtn.trigger('click');
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(wrapper.emitted('clean-unpinned')).toBeTruthy();
+
+    confirmSpy.mockRestore();
   });
 });

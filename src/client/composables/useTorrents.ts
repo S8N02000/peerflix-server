@@ -44,6 +44,7 @@ export function useTorrents() {
   const systemStatus = ref<SystemStatusDTO | null>(null);
   const searchQuery = ref<string>('');
   const selectedCategory = ref<string>('all');
+  const sortBy = ref<'recent' | 'name' | 'size' | 'progress'>('recent');
   const hideJunkFiles = ref<boolean>(true);
   const isLoading = ref<boolean>(false);
   const errorMessage = ref<string | null>(null);
@@ -51,7 +52,7 @@ export function useTorrents() {
   let socket: Socket | null = null;
 
   const filteredTorrents = computed(() => {
-    return torrents.value.filter((torrent) => {
+    const list = torrents.value.filter((torrent) => {
       // Category filter
       if (selectedCategory.value !== 'all') {
         if (selectedCategory.value === 'archive_other') {
@@ -74,6 +75,25 @@ export function useTorrents() {
       }
 
       return true;
+    });
+
+    // Pinned torrents stay on top, then sorted by sortBy
+    return list.slice().sort((a, b) => {
+      if (a.pinned !== b.pinned) {
+        return a.pinned ? -1 : 1;
+      }
+
+      switch (sortBy.value) {
+        case 'size':
+          return (b.length || 0) - (a.length || 0);
+        case 'progress':
+          return (b.downloadedPercentage || 0) - (a.downloadedPercentage || 0);
+        case 'name':
+          return a.name.localeCompare(b.name);
+        case 'recent':
+        default:
+          return (b.addedAt || 0) - (a.addedAt || 0);
+      }
     });
   });
 
@@ -118,6 +138,7 @@ export function useTorrents() {
     if (typeof window === 'undefined') return;
 
     socket = ClientSocket({
+      withCredentials: true,
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
@@ -126,30 +147,35 @@ export function useTorrents() {
 
     socket.on('stats', (infoHash: string, stats: any) => {
       const torrent = torrents.value.find((t) => t.infoHash === infoHash);
-      if (torrent) {
+      if (torrent && stats) {
+        // Monotonic guard: ignore out-of-order packets with smaller seq or smaller downloaded bytes
+        if (
+          typeof stats.seq === 'number' &&
+          typeof torrent.stats.seq === 'number' &&
+          stats.seq < torrent.stats.seq
+        ) {
+          return;
+        }
+
+        if (
+          typeof stats.downloaded === 'number' &&
+          typeof torrent.stats.downloaded === 'number' &&
+          stats.downloaded < torrent.stats.downloaded
+        ) {
+          return;
+        }
+
         torrent.stats = stats;
-        torrent.downloadedPercentage = Math.round(stats.progress * 100);
+        if (typeof stats.paused === 'boolean') {
+          torrent.paused = stats.paused;
+        }
+
+        torrent.downloadedPercentage = Math.min(100, Math.round(stats.progress * 1000) / 10);
         if (stats.progress >= 0.9999) {
           if (!torrent.isFullyDownloaded) {
             torrent.isFullyDownloaded = true;
             showNotification('Téléchargement terminé', `${torrent.name} est 100% prêt sur le serveur.`);
           }
-        }
-      }
-    });
-
-    socket.on('download', (infoHash: string, data: any) => {
-      const torrent = torrents.value.find((t) => t.infoHash === infoHash);
-      if (torrent && data) {
-        if (typeof data.progress === 'number') {
-          torrent.stats.progress = data.progress;
-          torrent.downloadedPercentage = Math.round(data.progress * 100);
-        }
-        if (typeof data.downloaded === 'number') {
-          torrent.stats.downloaded = data.downloaded;
-        }
-        if (data.speed) {
-          torrent.stats.speed = data.speed;
         }
       }
     });
@@ -275,11 +301,24 @@ export function useTorrents() {
     }
   };
 
+  const cleanUnpinned = async () => {
+    isLoading.value = true;
+    try {
+      await api.cleanUnpinned();
+      await loadTorrents();
+    } catch (err: any) {
+      errorMessage.value = err.message || 'Échec du nettoyage';
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
   return {
     torrents,
     systemStatus,
     searchQuery,
     selectedCategory,
+    sortBy,
     hideJunkFiles,
     isLoading,
     errorMessage,
@@ -294,6 +333,7 @@ export function useTorrents() {
     resumeTorrent,
     selectFile,
     deselectFile,
+    cleanUnpinned,
     initSocket
   };
 }

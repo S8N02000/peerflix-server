@@ -17,6 +17,7 @@ const {
   systemStatus,
   searchQuery,
   selectedCategory,
+  sortBy,
   hideJunkFiles,
   isLoading,
   errorMessage,
@@ -31,6 +32,7 @@ const {
   resumeTorrent,
   selectFile,
   deselectFile,
+  cleanUnpinned,
   initSocket,
 } = useTorrents();
 
@@ -84,7 +86,10 @@ onMounted(() => {
 <template>
   <div class="app-layout">
     <!-- Header with System Disk Stats & Clean trigger -->
-    <AppHeader :system-status="systemStatus" />
+    <AppHeader
+      :system-status="systemStatus"
+      @clean-unpinned="cleanUnpinned"
+    />
 
     <main class="main-content">
       <!-- Universal Drag & Drop / Input Bar -->
@@ -99,10 +104,12 @@ onMounted(() => {
       <CategoryFilterBar
         :selected-category="selectedCategory"
         :search-query="searchQuery"
+        :sort-by="sortBy"
         :hide-junk-files="hideJunkFiles"
         :counts="categoryCounts"
         @update:selected-category="selectedCategory = $event"
         @update:search-query="searchQuery = $event"
+        @update:sort-by="sortBy = $event"
         @update:hide-junk-files="hideJunkFiles = $event"
       />
 
@@ -122,6 +129,7 @@ onMounted(() => {
           v-for="torrent in filteredTorrents"
           :key="torrent.infoHash"
           :torrent="torrent"
+          :system-status="systemStatus"
           :hide-junk-files="hideJunkFiles"
           @toggle-pin="togglePin"
           @pause="pauseTorrent"
@@ -142,6 +150,7 @@ onMounted(() => {
       v-if="activeVideoFile && activeVideoTorrent"
       :file="activeVideoFile"
       :torrent="activeVideoTorrent"
+      :system-status="systemStatus"
       @close="activeVideoFile = null; activeVideoTorrent = null"
       @open-qr="handleOpenQr"
     />
@@ -150,6 +159,7 @@ onMounted(() => {
       v-if="activeQrFile && activeQrTorrent"
       :file="activeQrFile"
       :torrent="activeQrTorrent"
+      :system-status="systemStatus"
       @close="activeQrFile = null; activeQrTorrent = null"
     />
 
@@ -172,8 +182,9 @@ onMounted(() => {
 <style scoped>
 .app-layout {
   min-height: 100vh;
-  background-color: #0b0f19;
-  color: #f3f4f6;
+  background-color: #09090d;
+  background-image: radial-gradient(circle at 50% 0%, rgba(245, 158, 11, 0.07) 0%, rgba(139, 92, 246, 0.04) 35%, transparent 70%);
+  color: #f4f4f6;
   display: flex;
   flex-direction: column;
 }
@@ -196,8 +207,8 @@ onMounted(() => {
 .empty-state {
   text-align: center;
   padding: 4rem 1.5rem;
-  background: #111827;
-  border-radius: 1rem;
+  background: #12131a;
+  border-radius: 14px;
   border: 1px dashed rgba(255, 255, 255, 0.12);
   margin-top: 1rem;
 }

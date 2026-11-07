@@ -92,6 +92,7 @@ vi.mock('../../src/client/composables/useTorrents.js', async () => {
 
   const selectedCategory = ref('all');
   const searchQuery = ref('');
+  const sortBy = ref('recent');
   const hideJunkFiles = ref(true);
 
   const filteredTorrents = computed(() => {
@@ -117,6 +118,7 @@ vi.mock('../../src/client/composables/useTorrents.js', async () => {
       systemStatus: mockSystemStatus,
       searchQuery,
       selectedCategory,
+      sortBy,
       hideJunkFiles,
       isLoading: ref(false),
       errorMessage: ref(null),
@@ -132,6 +134,7 @@ vi.mock('../../src/client/composables/useTorrents.js', async () => {
       resumeTorrent: vi.fn(),
       selectFile: vi.fn(),
       deselectFile: vi.fn(),
+      cleanUnpinned: vi.fn(),
     }),
     formatBytes: (b: number) => `${b} B`,
     formatSpeed: (s: number) => `${s} B/s`,

@@ -5,6 +5,7 @@ const props = defineProps<{
   selectedCategory: string;
   searchQuery: string;
   hideJunkFiles: boolean;
+  sortBy?: 'recent' | 'name' | 'size' | 'progress';
   counts: {
     all: number;
     video: number;
@@ -18,6 +19,7 @@ const emit = defineEmits<{
   (e: 'update:selectedCategory', category: string): void;
   (e: 'update:searchQuery', query: string): void;
   (e: 'update:hideJunkFiles', val: boolean): void;
+  (e: 'update:sortBy', val: 'recent' | 'name' | 'size' | 'progress'): void;
 }>();
 
 const searchInput = ref<HTMLInputElement | null>(null);
@@ -94,8 +96,24 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <!-- Search & Junk Toggle Controls -->
+    <!-- Search, Sort & Junk Toggle Controls -->
     <div class="controls-right">
+      <!-- Sort Select -->
+      <div class="sort-box" title="Trier les torrents">
+        <span class="sort-icon">↕</span>
+        <select
+          id="sort-select"
+          class="sort-select"
+          :value="sortBy || 'recent'"
+          @change="emit('update:sortBy', ($event.target as HTMLSelectElement).value as any)"
+        >
+          <option value="recent">Plus récents</option>
+          <option value="name">Nom (A-Z)</option>
+          <option value="size">Taille</option>
+          <option value="progress">Progression</option>
+        </select>
+      </div>
+
       <div class="search-box">
         <span class="search-icon">🔍</span>
         <input
@@ -143,11 +161,11 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  background: #1e293b;
+  background: #14151f;
   color: #94a3b8;
   border: 1px solid rgba(255, 255, 255, 0.08);
   padding: 0.45rem 0.85rem;
-  border-radius: 0.5rem;
+  border-radius: 9999px;
   font-size: 0.8125rem;
   font-weight: 500;
   cursor: pointer;
@@ -156,21 +174,25 @@ onUnmounted(() => {
 }
 
 .tab-btn:hover {
-  background: #334155;
+  background: #1e1f2d;
   color: #f1f5f9;
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .tab-btn.active {
-  background: #10b981;
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
   color: #ffffff;
-  border-color: #10b981;
+  font-weight: 600;
+  border-color: #f59e0b;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.35);
 }
 
 .badge {
-  background: rgba(0, 0, 0, 0.25);
-  padding: 0.1rem 0.4rem;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.1rem 0.45rem;
   border-radius: 9999px;
   font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .controls-right {
@@ -180,12 +202,42 @@ onUnmounted(() => {
   flex-wrap: wrap;
 }
 
+.sort-box {
+  display: flex;
+  align-items: center;
+  background: #14151f;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  padding: 0 0.5rem;
+  gap: 0.25rem;
+}
+
+.sort-icon {
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.sort-select {
+  background: transparent;
+  color: #e2e8f0;
+  border: none;
+  outline: none;
+  font-size: 0.8125rem;
+  padding: 0.45rem 0.25rem;
+  cursor: pointer;
+}
+
+.sort-select option {
+  background: #14151f;
+  color: #f1f5f9;
+}
+
 .search-box {
   display: flex;
   align-items: center;
-  background: #1e293b;
+  background: #14151f;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0.375rem;
+  border-radius: 0.5rem;
   padding: 0 0.6rem;
 }
 
@@ -200,8 +252,8 @@ onUnmounted(() => {
   outline: none;
   color: #f3f4f6;
   font-size: 0.8125rem;
-  padding: 0.4rem 0.5rem;
-  width: 170px;
+  padding: 0.45rem 0.5rem;
+  width: 180px;
 }
 
 .search-input::placeholder {

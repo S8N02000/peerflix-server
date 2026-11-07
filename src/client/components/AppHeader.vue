@@ -2,12 +2,25 @@
 import { computed, ref } from 'vue';
 import type { SystemStatusDTO } from '../../shared/types.js';
 import { formatBytes } from '../composables/useTorrents.js';
+import { getExternalBaseUrl } from '../utils/auth-url.js';
 
 const props = defineProps<{
   systemStatus: SystemStatusDTO | null;
 }>();
 
+const emit = defineEmits<{
+  (e: 'clean-unpinned'): void;
+}>();
+
 const copied = ref(false);
+
+const handleCleanClick = () => {
+  if (typeof window !== 'undefined') {
+    if (window.confirm('Supprimer tous les torrents non épinglés 📌 pour libérer de l\'espace disque ?')) {
+      emit('clean-unpinned');
+    }
+  }
+};
 
 const diskClass = computed(() => {
   const percent = props.systemStatus?.disk?.usedPercent ?? 0;
@@ -27,7 +40,8 @@ const formattedStorage = computed(() => {
 
 const copyPlaylistUrl = async () => {
   if (typeof window === 'undefined') return;
-  const fullUrl = `${window.location.origin}/playlist.m3u`;
+  const baseUrl = getExternalBaseUrl(props.systemStatus);
+  const fullUrl = `${baseUrl}/playlist.m3u`;
   try {
     await navigator.clipboard.writeText(fullUrl);
     copied.value = true;
@@ -67,14 +81,16 @@ const copyPlaylistUrl = async () => {
         </div>
       </div>
 
-      <!-- Auto Clean Indicator -->
-      <div
-        class="clean-badge"
-        title="Nettoyage automatique régulier. Les torrents épinglés 📌 sont protégés et conservés intacts."
+      <!-- Manual / Auto Clean Trigger -->
+      <button
+        type="button"
+        class="clean-badge btn-clean-manual"
+        title="Cliquer pour supprimer immédiatement tous les torrents non épinglés (les 📌 sont protégés)"
+        @click="handleCleanClick"
       >
         <span class="clean-icon">🧹</span>
         <span class="clean-text">Nettoyage auto : Lun. 09h00</span>
-      </div>
+      </button>
 
       <!-- Playlist TV Button -->
       <div class="playlist-dropdown">
@@ -99,9 +115,9 @@ const copyPlaylistUrl = async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem 1.5rem;
-  background-color: #111827;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.85rem 1.5rem;
+  background-color: #0c0c12;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   color: #f3f4f6;
   flex-wrap: wrap;
   gap: 1rem;
@@ -130,7 +146,7 @@ const copyPlaylistUrl = async () => {
   font-size: 1.35rem;
   font-weight: 700;
   letter-spacing: -0.025em;
-  background: linear-gradient(135deg, #10b981, #3b82f6);
+  background: linear-gradient(135deg, #f59e0b, #10b981);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   margin: 0;
@@ -203,7 +219,14 @@ const copyPlaylistUrl = async () => {
   border: 1px solid rgba(59, 130, 246, 0.25);
   padding: 0.35rem 0.65rem;
   border-radius: 0.375rem;
-  cursor: help;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.clean-badge:hover {
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.4);
 }
 
 .playlist-dropdown {
