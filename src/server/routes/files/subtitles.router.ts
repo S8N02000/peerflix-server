@@ -36,7 +36,6 @@ export function createSubtitlesRouter(store: TorrentStore): Router {
       const vttContent = srtToVtt(fullBuffer);
 
       res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
-      res.setHeader('Access-Control-Allow-Origin', '*');
       res.send(vttContent);
     });
     stream.on('error', (err: any) => next(err));

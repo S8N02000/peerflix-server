@@ -4,6 +4,7 @@ import { createStreamingRouter } from './files/streaming.router.js';
 import { createSubtitlesRouter } from './files/subtitles.router.js';
 import { createPreviewRouter } from './files/preview.router.js';
 import { createArchiveRouter } from './files/archive.router.js';
+import { createRemuxRouter } from './files/remux.router.js';
 export { encodeContentDisposition } from './files/files.utils.js';
 
 export function createFilesRouter(store: TorrentStore): Router {
@@ -14,6 +15,7 @@ export function createFilesRouter(store: TorrentStore): Router {
   router.use(createSubtitlesRouter(store));
   router.use(createPreviewRouter(store));
   router.use(createArchiveRouter(store));
+  router.use(createRemuxRouter(store));
 
   return router;
 }

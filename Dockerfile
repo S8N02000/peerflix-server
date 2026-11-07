@@ -24,11 +24,12 @@ ENV PORT=9000
 ENV PEERFLIX_CONFIG_PATH=/data/config
 ENV PEERFLIX_DOWNLOAD_PATH=/data/downloads
 
-# Install curl, ca-certificates, and tini for proper signal forwarding and zombie reaper
+# Install curl, ca-certificates, tini, and ffmpeg for audio remux and stream probing
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     tini \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Create dedicated non-root user and group
