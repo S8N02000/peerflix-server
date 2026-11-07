@@ -18,7 +18,7 @@ const copied = ref<boolean>(false);
 
 onMounted(async () => {
   try {
-    const res = await fetch(`/torrents/${props.torrent.infoHash}/hash/${encodeURIComponent(props.file.path)}`);
+    const res = await fetch(`/torrents/${props.torrent.infoHash}/hash/${props.file.index}`);
     if (!res.ok) {
       throw new Error(`Erreur serveur (${res.status})`);
     }
