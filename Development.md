@@ -1,37 +1,62 @@
-Development
-===========
+# Guide de Développement
 
-If you wish to build and run the code from source, here's what you'll need:
+Guide pour exécuter, modifier et tester le code source de Peerflix Server.
 
-# Prerequisites
+---
 
-Install Grunt and Bower: `npm install -g grunt-cli bower`
+## Prérequis
 
-Install all local modules: `npm install`
+- **Node.js** >= 20.x (Node.js 22 LTS recommandé)
+- **npm** >= 10.x
+- **FFmpeg** et **FFprobe** installés sur votre système (requis pour l'analyse multimédia et le transcodage audio AAC).
 
-Install all external dependencies: `bower install`
+---
 
-# Running development server
+## Installation
 
-`grunt serve`
+```sh
+# Cloner le dépôt
+git clone https://github.com/votre-compte/peerflix-server.git
+cd peerflix-server
 
-The task will first perform all required pre-processing, enable watch, live-reload, jshint and karma, and then open the browser.
-If you don't want any of this fancy stuff, you can just run `npm start`
+# Installer l'ensemble des dépendances
+npm install
+```
 
-# Building production-ready application
+---
 
-`grunt build`
+## Commandes Disponibles
 
-This task will optimize and minimize all the assets and prepare the code for deployment (e.g. to npm registry). You can run the production version locally by using `grunt serve:dist`
+### 1. Développement (Live Reload & Vite HMR)
+```sh
+npm run dev
+```
+Démarre simultanément le serveur backend Express (avec rechargement automatique) et le serveur Vite pour le frontend Vue 3 avec Hot Module Replacement.
+L'application est accessible sur `http://localhost:5173` ou `http://localhost:9000`.
 
-# Unit tests
+### 2. Tests Automatisés
+```sh
+# Lancer la suite de tests complète (34 fichiers, 135 tests)
+npm test
 
-`grunt test`
+# Lancer les tests en mode watch
+npm run test:watch
+```
 
-This task will start Karma test runner and report the results.
+### 3. Vérification des Types TypeScript
+```sh
+npm run typecheck
+```
+Exécute `tsc` pour le backend et `vue-tsc` pour le frontend Vue 3 afin de garantir une absence totale d'erreurs de typage.
 
-# JSHint
+### 4. Compilation Production
+```sh
+npm run build
+```
+Compile le client dans `dist/client/` via Vite et le serveur dans `dist/server/` via `tsc`.
 
-`grunt jshint`
-
-This task will run code analysis and report the results.
+### 5. Démarrage de la Version Compilée
+```sh
+npm start
+```
+Lance le serveur de production compilé sur le port configuré (par défaut: `9000`).
