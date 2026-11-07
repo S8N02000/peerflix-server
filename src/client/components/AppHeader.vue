@@ -1,0 +1,256 @@
+<script setup lang="ts">
+import { computed, ref } from 'vue';
+import type { SystemStatusDTO } from '../../shared/types.js';
+import { formatBytes } from '../composables/useTorrents.js';
+
+const props = defineProps<{
+  systemStatus: SystemStatusDTO | null;
+}>();
+
+const copied = ref(false);
+
+const diskClass = computed(() => {
+  const percent = props.systemStatus?.disk?.usedPercent ?? 0;
+  if (percent >= 90) return 'disk-danger';
+  if (percent >= 75) return 'disk-warning';
+  return 'disk-normal';
+});
+
+const formattedStorage = computed(() => {
+  const disk = props.systemStatus?.disk;
+  if (!disk) return 'Stockage : Inconnu';
+  const used = formatBytes(disk.usedBytes);
+  const total = formatBytes(disk.totalBytes);
+  const free = formatBytes(disk.freeBytes);
+  return `Stockage : ${used} / ${total} (${free} libres)`;
+});
+
+const copyPlaylistUrl = async () => {
+  if (typeof window === 'undefined') return;
+  const fullUrl = `${window.location.origin}/playlist.m3u`;
+  try {
+    await navigator.clipboard.writeText(fullUrl);
+    copied.value = true;
+    setTimeout(() => {
+      copied.value = false;
+    }, 2000);
+  } catch {
+    // Fallback prompt
+    window.prompt('URL de la playlist TV :', fullUrl);
+  }
+};
+</script>
+
+<template>
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo-box">
+        <img src="../assets/logo.svg" alt="Peerflix Logo" class="app-logo" />
+      </div>
+      <div class="title-box">
+        <h1 class="app-title">Peerflix</h1>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <!-- Disk Gauge -->
+      <div v-if="systemStatus?.disk" class="disk-gauge-container" :class="diskClass">
+        <div class="disk-info">
+          <span class="disk-text">{{ formattedStorage }}</span>
+          <span class="disk-percent font-mono">{{ systemStatus.disk.usedPercent }}%</span>
+        </div>
+        <div class="disk-progress-bar">
+          <div
+            class="disk-progress-fill"
+            :style="{ width: `${systemStatus.disk.usedPercent}%` }"
+          ></div>
+        </div>
+      </div>
+
+      <!-- Auto Clean Indicator -->
+      <div
+        class="clean-badge"
+        title="Nettoyage automatique régulier. Les torrents épinglés 📌 sont protégés et conservés intacts."
+      >
+        <span class="clean-icon">🧹</span>
+        <span class="clean-text">Nettoyage auto : Lun. 09h00</span>
+      </div>
+
+      <!-- Playlist TV Button -->
+      <div class="playlist-dropdown">
+        <a href="/playlist.m3u" download="peerflix.m3u" class="btn-playlist" title="Télécharger la playlist M3U pour Kodi/VLC">
+          📺 Playlist TV (.m3u)
+        </a>
+        <button
+          type="button"
+          class="btn-copy-playlist"
+          @click="copyPlaylistUrl"
+          title="Copier le lien direct vers la playlist globale M3U"
+        >
+          {{ copied ? '✓ Copié !' : '📋 Copier lien' }}
+        </button>
+      </div>
+    </div>
+  </header>
+</template>
+
+<style scoped>
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1.5rem;
+  background-color: #111827;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: #f3f4f6;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.logo-box {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-logo {
+  width: 100%;
+  height: 100%;
+}
+
+.app-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  background: linear-gradient(135deg, #10b981, #3b82f6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin: 0;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.disk-gauge-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 260px;
+  background: #1e293b;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.disk-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+}
+
+.disk-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.disk-progress-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+/* Disk status classes */
+.disk-normal .disk-progress-fill {
+  background-color: #10b981;
+}
+
+.disk-warning .disk-progress-fill {
+  background-color: #f59e0b;
+}
+
+.disk-danger {
+  border-color: rgba(239, 68, 68, 0.5);
+}
+.disk-danger .disk-progress-fill {
+  background-color: #ef4444;
+}
+.disk-danger .disk-percent {
+  color: #ef4444;
+  font-weight: 700;
+}
+
+.clean-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  background: rgba(59, 130, 246, 0.12);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  padding: 0.35rem 0.65rem;
+  border-radius: 0.375rem;
+  cursor: help;
+}
+
+.playlist-dropdown {
+  display: flex;
+  align-items: center;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.375rem;
+  overflow: hidden;
+}
+
+.btn-playlist {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #e5e7eb;
+  text-decoration: none;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.btn-playlist:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.btn-copy-playlist {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.75rem;
+  border: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #9ca3af;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-copy-playlist:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f3f4f6;
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    padding: 0.5rem 1rem;
+  }
+  .disk-gauge-container {
+    min-width: 100%;
+  }
+}
+</style>
