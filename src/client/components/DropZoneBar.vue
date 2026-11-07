@@ -165,11 +165,11 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  background: #1e293b;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.625rem;
+  background: #12131a;
+  padding: 0.6rem 0.85rem;
+  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   flex-wrap: wrap;
 }
 
@@ -184,16 +184,16 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   flex: 1;
-  background: #0f172a;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0.375rem;
+  background: #09090d;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 0.5rem;
   padding: 0 0.75rem;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .input-group:focus-within {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
 }
 
 .input-icon {
@@ -216,20 +216,21 @@ onUnmounted(() => {
 }
 
 .btn-submit {
-  background: #10b981;
+  background: linear-gradient(135deg, #10b981, #059669);
   color: white;
   border: none;
-  border-radius: 0.375rem;
+  border-radius: 0.5rem;
   padding: 0.6rem 1.25rem;
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
   white-space: nowrap;
 }
 
 .btn-submit:hover:not(:disabled) {
   background: #059669;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
 }
 
 .btn-submit:disabled {

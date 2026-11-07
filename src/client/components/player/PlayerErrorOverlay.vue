@@ -2,6 +2,11 @@
 defineProps<{
   vlcDirectUrl: string;
   downloadUrl: string;
+  showDirectOption?: boolean;
+}>();
+
+defineEmits<{
+  (e: 'switch-direct'): void;
 }>();
 </script>
 
@@ -17,6 +22,14 @@ defineProps<{
         <a :href="vlcDirectUrl" class="btn-codec-action vlc">
           🟠 Lancer directement dans VLC
         </a>
+        <button
+          v-if="showDirectOption"
+          type="button"
+          class="btn-codec-action direct"
+          @click="$emit('switch-direct')"
+        >
+          🎞 Essayer le Flux direct
+        </button>
         <a :href="downloadUrl" class="btn-codec-action download" download>
           ⬇ Télécharger le fichier
         </a>
@@ -90,6 +103,16 @@ defineProps<{
 }
 .btn-codec-action.vlc:hover {
   background: #ea580c;
+}
+
+.btn-codec-action.direct {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  cursor: pointer;
+}
+.btn-codec-action.direct:hover {
+  background: rgba(16, 185, 129, 0.35);
 }
 
 .btn-codec-action.download {

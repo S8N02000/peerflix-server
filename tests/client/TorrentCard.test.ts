@@ -126,7 +126,11 @@ describe('TorrentCard Component', () => {
 
     const playBtn = wrapper.find('.btn-main-action.play');
     expect(playBtn.exists()).toBe(true);
-    expect(playBtn.text()).toContain('Regarder le film');
+    expect(playBtn.text()).toContain('Regarder');
+
+    // Both Regarder and ZIP are available on video torrents
+    const zipBtn = wrapper.find('.btn-main-action.download-zip');
+    expect(zipBtn.exists()).toBe(true);
 
     await playBtn.trigger('click');
 

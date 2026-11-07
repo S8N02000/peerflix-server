@@ -48,7 +48,8 @@ defineProps<{
 .progress-bar-bg {
   width: 100%;
   height: 8px;
-  background: #0f172a;
+  background: #09090d;
+  border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 9999px;
   overflow: hidden;
   margin-bottom: 0.5rem;
@@ -56,12 +57,13 @@ defineProps<{
 
 .progress-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #3b82f6, #10b981);
+  background: linear-gradient(90deg, #f59e0b, #10b981);
   transition: width 0.3s ease;
 }
 
 .progress-bar-fill.complete {
   background: #10b981;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
 }
 
 .stats-row {

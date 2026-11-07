@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import type { TorrentDTO } from '../../../shared/types.js';
+import { parseReleaseMetadata } from '../../utils/release-parser.js';
 
 const props = defineProps<{
   torrent: TorrentDTO;
@@ -13,7 +14,7 @@ const emit = defineEmits<{
   (e: 'delete', infoHash: string): void;
 }>();
 
-const isPaused = ref(false);
+const releaseMeta = computed(() => parseReleaseMetadata(props.torrent.name));
 
 const categoryBadge = computed(() => {
   switch (props.torrent.category) {
@@ -26,12 +27,13 @@ const categoryBadge = computed(() => {
   }
 });
 
+const isTorrentPaused = computed(() => Boolean(props.torrent.paused || props.torrent.stats?.paused));
+
 const togglePause = () => {
-  isPaused.value = !isPaused.value;
-  if (isPaused.value) {
-    emit('pause', props.torrent.infoHash);
-  } else {
+  if (isTorrentPaused.value) {
     emit('resume', props.torrent.infoHash);
+  } else {
+    emit('pause', props.torrent.infoHash);
   }
 };
 
@@ -45,13 +47,36 @@ const confirmDelete = () => {
 <template>
   <div class="card-header">
     <div class="header-main">
-      <span
-        class="category-tag"
-        :style="{ backgroundColor: `${categoryBadge.color}20`, color: categoryBadge.color, borderColor: `${categoryBadge.color}40` }"
-      >
-        {{ categoryBadge.label }}
-      </span>
-      <h3 class="torrent-title" :title="torrent.name">{{ torrent.name }}</h3>
+      <div class="title-and-badges">
+        <div class="title-row">
+          <span
+            class="category-tag"
+            :style="{ backgroundColor: `${categoryBadge.color}20`, color: categoryBadge.color, borderColor: `${categoryBadge.color}40` }"
+          >
+            {{ categoryBadge.label }}
+          </span>
+          <h3 class="torrent-clean-title" :title="torrent.name">
+            {{ releaseMeta.cleanTitle }}
+            <span v-if="releaseMeta.year" class="title-year">({{ releaseMeta.year }})</span>
+          </h3>
+        </div>
+
+        <!-- C411 Technical Badges Row -->
+        <div v-if="releaseMeta.badges.length > 0" class="c411-badges-row">
+          <span
+            v-for="b in releaseMeta.badges"
+            :key="b.label"
+            class="c411-badge"
+            :style="{ backgroundColor: `${b.color}18`, color: b.color, borderColor: `${b.color}40` }"
+          >
+            {{ b.label }}
+          </span>
+        </div>
+
+        <div class="torrent-raw-subtitle" :title="torrent.name">
+          {{ torrent.name }}
+        </div>
+      </div>
     </div>
 
     <div class="header-controls">
@@ -78,10 +103,10 @@ const confirmDelete = () => {
       <button
         type="button"
         class="btn-icon"
-        :title="isPaused ? 'Reprendre le téléchargement' : 'Mettre en pause'"
+        :title="isTorrentPaused ? 'Reprendre le téléchargement' : 'Mettre en pause'"
         @click="togglePause"
       >
-        {{ isPaused ? '▶' : '⏸' }}
+        {{ isTorrentPaused ? '▶' : '⏸' }}
       </button>
 
       <!-- Delete Button -->
@@ -109,10 +134,24 @@ const confirmDelete = () => {
 
 .header-main {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.6rem;
   flex: 1;
   min-width: 250px;
+}
+
+.title-and-badges {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
 }
 
 .category-tag {
@@ -124,12 +163,45 @@ const confirmDelete = () => {
   white-space: nowrap;
 }
 
-.torrent-title {
+.torrent-clean-title {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #f4f4f6;
+  letter-spacing: -0.015em;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.title-year {
+  color: #94a3b8;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.c411-badges-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.c411-badge {
+  font-size: 0.7rem;
   font-weight: 600;
-  color: #f8fafc;
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.25rem;
+  border: 1px solid;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.torrent-raw-subtitle {
+  font-size: 0.75rem;
+  color: #64748b;
   word-break: break-all;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
 }
 
 .header-controls {

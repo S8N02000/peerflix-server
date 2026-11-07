@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import type { TorrentDTO, TorrentFileDTO } from '../../shared/types.js';
+import type { TorrentDTO, TorrentFileDTO, SystemStatusDTO } from '../../shared/types.js';
 import FileTree from './FileTree.vue';
 import TorrentCardHeader from './torrent-card/TorrentCardHeader.vue';
 import TorrentCardProgress from './torrent-card/TorrentCardProgress.vue';
@@ -8,6 +8,7 @@ import TorrentCardActions from './torrent-card/TorrentCardActions.vue';
 
 defineProps<{
   torrent: TorrentDTO;
+  systemStatus?: SystemStatusDTO | null;
   hideJunkFiles: boolean;
 }>();
 
@@ -44,6 +45,7 @@ const isExpanded = ref(false);
     <!-- Quick Action Bar -->
     <TorrentCardActions
       :torrent="torrent"
+      :system-status="systemStatus"
       :is-expanded="isExpanded"
       @play-media="emit('play-media', $event, torrent)"
       @preview-nfo="emit('preview-nfo', $event, torrent)"
@@ -69,12 +71,12 @@ const isExpanded = ref(false);
 
 <style scoped>
 .torrent-card {
-  background: #1e293b;
-  border-radius: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #12131a;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
   padding: 1.25rem;
   margin-bottom: 1rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 

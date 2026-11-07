@@ -62,7 +62,7 @@ describe('MediaPlayerModal & QrCodeModal Components', () => {
       expect(track.attributes('src')).toBe(mockFile.subtitleUrl);
     });
 
-    it('renders direct VLC link in header', () => {
+    it('renders VLC M3U download link in header', () => {
       const wrapper = mount(MediaPlayerModal, {
         props: {
           file: mockFile,
@@ -72,8 +72,45 @@ describe('MediaPlayerModal & QrCodeModal Components', () => {
 
       const vlcBtn = wrapper.find('.btn-action-icon.btn-vlc');
       expect(vlcBtn.exists()).toBe(true);
-      expect(vlcBtn.attributes('href')).toContain(`vlc://`);
-      expect(vlcBtn.attributes('href')).toContain(mockFile.streamUrl);
+      expect(vlcBtn.attributes('href')).toBe(`/torrents/${mockTorrent.infoHash}/files/${mockFile.index}/vlc.m3u`);
+    });
+
+    it('renders audio track selector when probe returns multiple or DTS audio tracks', async () => {
+      const probeData = {
+        videoStreams: [{ index: 0, codec: 'hevc', width: 3840, height: 2160, browserSupported: true }],
+        audioStreams: [
+          { index: 1, audioTrackIndex: 0, codec: 'dts', channels: 6, language: 'fre', title: 'VFQ', browserSupported: false },
+          { index: 2, audioTrackIndex: 1, codec: 'truehd', channels: 8, language: 'eng', title: 'VO', browserSupported: false }
+        ],
+        subtitleStreams: [],
+        needsAudioRemux: true
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue(probeData)
+      } as any);
+
+      const wrapper = mount(MediaPlayerModal, {
+        props: {
+          file: mockFile,
+          torrent: mockTorrent,
+        },
+      });
+
+      // Wait for fetch probe
+      await new Promise((r) => setTimeout(r, 50));
+
+      const selector = wrapper.find('.select-audio');
+      expect(selector.exists()).toBe(true);
+      expect(selector.text()).toContain('VFQ');
+      expect(selector.text()).toContain('VO');
+      expect(wrapper.text()).toContain('Audio : Conversion AAC auto ✓');
+
+      // Change audio track to track 1
+      await selector.setValue(1);
+      const video = wrapper.find('video');
+      expect(video.attributes('src')).toContain('audioTrack=1');
     });
 
     it('shows codec error overlay when video emits error', async () => {
