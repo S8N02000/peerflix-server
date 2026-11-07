@@ -9,14 +9,79 @@ services:
     ports:
       - "9000:9000"
     environment:
+      # =========================================================================
+      # 1. RÉSEAU & PORT D'ÉCOUTE
+      # =========================================================================
+      # Port TCP interne sur lequel écoute le serveur web Node.js / Express (par défaut: 9000)
       - PORT=9000
+
+      # =========================================================================
+      # 2. CHEMINS DE STOCKAGE (VOLUMES PERSISTANTS)
+      # =========================================================================
+      # Dossier où sont stockées les métadonnées (torrents .torrent, store.json, stats)
       - PEERFLIX_CONFIG_PATH=/data/config
+
+      # Dossier où sont stockés les fichiers et morceaux de torrents téléchargés
       - PEERFLIX_DOWNLOAD_PATH=/data/downloads
+
+      # =========================================================================
+      # 3. SURVEILLANCE & LIMITES D'ESPACE DISQUE
+      # =========================================================================
+      # Seuil d'espace libre minimal (en Mo) sur la partition hôte avant alerte et blocage des ajouts
+      # (par défaut: 2048 Mo = 2 Go pour éviter de saturer le disque du système hôte)
       - MIN_FREE_DISK_MB=2048
+
+      # Quota maximum alloué (en Go) pour l'ensemble du dossier de téléchargement Peerflix
+      # (Optionnel : si non défini, aucun quota n'est imposé, limité uniquement par l'espace disque réel)
+      # - MAX_DISK_QUOTA_GB=200
+
+      # =========================================================================
+      # 4. ORDONNANCEUR DE NETTOYAGE AUTOMATIQUE (SCHEDULER)
+      # =========================================================================
+      # Active ou désactive la purge automatique hebdomadaire des torrents non épinglés (true / false)
       - AUTO_CLEAN_ENABLED=true
+
+      # Jour de la semaine pour la purge automatique :
+      # 0 = Dimanche, 1 = Lundi, 2 = Mardi, 3 = Mercredi, 4 = Jeudi, 5 = Vendredi, 6 = Samedi (défaut: 1)
       - AUTO_CLEAN_DAY=1
+
+      # Heure de la purge automatique : 0 à 23 (défaut: 9 pour 09h00 du matin)
       - AUTO_CLEAN_HOUR=9
+
+      # Minute de la purge automatique : 0 à 59 (défaut: 0 pour 09h00 pile)
       - AUTO_CLEAN_MINUTE=0
+
+      # =========================================================================
+      # 5. SÉCURITÉ, REVERSE PROXY & CORS
+      # =========================================================================
+      # Identifiants HTTP Basic Auth de secours au format "login:motdepasse"
+      # Utilisé pour injecter l'authentification dans les flux VLC (.m3u) et les QR codes mobiles
+      # lorsque Peerflix est derrière un reverse-proxy avec Basic Auth (Traefik, Nginx, Caddy...)
+      # - PUBLIC_AUTH_CREDENTIALS=admin:monmotdepasse
+
+      # Origine CORS autorisée pour l'API REST et le WebSocket Socket.IO
+      # (Par exemple: https://peerflix.mon-domaine.com. Si non défini, les requêtes cross-origin sont bloquées)
+      # - CORS_ORIGIN=https://peerflix.mon-domaine.com
+
+      # =========================================================================
+      # 6. INTÉGRATION C411 (RECHERCHE NATIVE & TÉLÉCHARGEMENT DIRECT)
+      # =========================================================================
+      # Clé API C411 (Passkey / Clé Torznab présente dans votre profil C411)
+      # Permet de rechercher des films/séries et de les lancer en 1 clic sans télécharger le .torrent manuellement
+      # - C411_API_KEY=votre_cle_api_c411
+
+      # URL de base de l'instance C411 (par défaut: https://c411.org)
+      # - C411_BASE_URL=https://c411.org
+
+      # =========================================================================
+      # 7. SYSTÈME, DATE & PERFORMANCE
+      # =========================================================================
+      # Fuseau horaire du conteneur (aligne les logs et l'ordonnanceur sur votre heure locale)
+      - TZ=Europe/Paris
+
+      # Mode d'exécution de Node.js (production optimise la vitesse et désactive les traces de débogage verbeuses)
+      - NODE_ENV=production
+
     volumes:
       - ./data/config:/data/config
       - ./data/downloads:/data/downloads
