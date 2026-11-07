@@ -88,3 +88,38 @@ export async function fetchFileSha256(
   }
   return res.json();
 }
+
+export async function fetchC411Status(): Promise<import('../../shared/types.js').C411ProfileDTO> {
+  const res = await authFetch('/c411/status');
+  if (!res.ok) throw new Error(`Failed to fetch C411 status: HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function searchC411(
+  query = '',
+  cat = ''
+): Promise<{ results: import('../../shared/types.js').C411SearchResultDTO[] }> {
+  const params = new URLSearchParams();
+  if (query) params.set('q', query);
+  if (cat) params.set('cat', cat);
+  const res = await authFetch(`/c411/search?${params.toString()}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Search failed' }));
+    throw new Error(err.message || `Search failed: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function addC411Torrent(id: string): Promise<{ infoHash: string }> {
+  const res = await authFetch('/c411/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Add torrent failed' }));
+    throw new Error(err.message || `Add failed: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+

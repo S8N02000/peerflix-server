@@ -113,3 +113,59 @@ export interface MediaProbeDTO {
   subtitleStreams: SubtitleStreamDTO[];
   needsAudioRemux: boolean;
 }
+
+export interface C411SearchResultDTO {
+  id: string; // Hash SHA-256 court généré côté serveur (jamais l'URL avec apikey !)
+  title: string;
+  size: number;
+  pubDate: string;
+  seeders: number;
+  leechers: number;
+  completed?: number;
+  categoryId?: string;
+  categoryName?: string;
+  isFreeleech: boolean;
+  infoHash?: string;
+  alreadyAdded?: boolean;
+  posterUrl?: string;
+  season?: number;
+  episode?: number;
+  resolution?: string;
+  language?: string;
+  subtitles?: string;
+  source?: string;
+  hdr?: string;
+  audio?: string;
+  codec?: string;
+  year?: string;
+  team?: string;
+}
+
+export interface C411SavedFilter {
+  id: string;
+  name: string;
+  cat?: string;
+  subCat?: string;
+  resolution?: string;
+  language?: string;
+  subtitles?: string;
+  season?: string;
+  source?: string;
+  hdr?: string;
+  audio?: string;
+  codec?: string;
+  year?: string;
+  freeleechOnly?: boolean;
+}
+
+export interface C411ProfileDTO {
+  enabled: boolean;
+  username?: string;
+  avatarUrl?: string;
+  uploadedBytes?: number;
+  downloadedBytes?: number;
+  zenBalance?: number;
+  freeleechActive?: boolean;
+  downloadAllowed?: boolean;
+}
+

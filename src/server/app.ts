@@ -7,9 +7,12 @@ import { defaultStore, type TorrentStore } from './services/store.js';
 import { createTorrentsRouter } from './routes/torrents.routes.js';
 import { createSystemRouter } from './routes/system.routes.js';
 import { createFilesRouter } from './routes/files.routes.js';
+import { createC411Router } from './routes/c411.routes.js';
+import { C411Client } from './services/c411-client.js';
 
 export interface CreateAppOptions {
   store?: TorrentStore;
+  c411Client?: C411Client;
   clientDistPath?: string;
   enableLogging?: boolean;
 }
@@ -64,9 +67,11 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const torrentsRouter = createTorrentsRouter(store);
   const systemRouter = createSystemRouter(store);
   const filesRouter = createFilesRouter(store);
+  const c411Router = createC411Router(store, options.c411Client);
   app.use(torrentsRouter);
   app.use(systemRouter);
   app.use(filesRouter);
+  app.use(c411Router);
 
   // Root or test dummy route to test 500 error handling
   app.get('/test-error', () => {
