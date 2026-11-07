@@ -15,14 +15,61 @@ const emit = defineEmits<{
   (e: 'toggle-expand'): void;
 }>();
 
-const mainVideoFile = computed(() => {
-  if (props.torrent.category !== 'video') return null;
-  return (
-    props.torrent.files.find(
-      (f) => f.category === 'video' && !f.name.toLowerCase().includes('sample')
-    ) || props.torrent.files.find((f) => f.category === 'video')
-  );
+const videoFiles = computed(() => {
+  return props.torrent.files
+    .filter((f) => f.category === 'video' && !f.name.toLowerCase().includes('sample'))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
 });
+
+const isSeries = computed(() => videoFiles.value.length > 1);
+
+// Find first unwatched / in-progress episode or default to episode 1
+const currentOrNextEpisode = computed<TorrentFileDTO | null>(() => {
+  if (videoFiles.value.length === 0) {
+    return props.torrent.files.find((f) => f.category === 'video') || null;
+  }
+  if (videoFiles.value.length === 1) return videoFiles.value[0];
+
+  for (const vf of videoFiles.value) {
+    try {
+      const pos = localStorage.getItem(`peerflix_pos_${props.torrent.infoHash}_${vf.index}`);
+      if (pos && parseFloat(pos) > 15) {
+        return vf;
+      }
+    } catch {}
+  }
+  return videoFiles.value[0];
+});
+
+const mainVideoFile = computed(() => currentOrNextEpisode.value);
+
+const watchButtonLabel = computed(() => {
+  if (!isSeries.value) return '▶ Regarder';
+  if (currentOrNextEpisode.value) {
+    const epMatch = currentOrNextEpisode.value.name.match(/S\d+(E\d+)/i) || currentOrNextEpisode.value.name.match(/(E\d+)/i);
+    const epLabel = epMatch ? epMatch[1] || epMatch[0] : `Ép. ${videoFiles.value.findIndex((f) => f.index === currentOrNextEpisode.value!.index) + 1}`;
+    return `▶ Regarder (${epLabel.toUpperCase()})`;
+  }
+  return '▶ Regarder';
+});
+
+const cleanEpName = (name: string): string => {
+  const match = name.match(/S(\d+)E(\d+)/i) || name.match(/E(\d+)/i);
+  if (match) {
+    return match[0].toUpperCase();
+  }
+  return name.replace(/\.[a-z0-9]+$/i, '');
+};
+
+const onQuickEpisodeSelect = (event: Event) => {
+  const select = event.target as HTMLSelectElement;
+  const idx = parseInt(select.value, 10);
+  const file = videoFiles.value.find((f) => f.index === idx);
+  if (file) {
+    emit('play-media', file, props.torrent);
+  }
+  select.value = '';
+};
 
 const nfoFile = computed(() => {
   return props.torrent.files.find((f) => f.category === 'info');
@@ -56,10 +103,29 @@ const copyAllDownloadLinks = async () => {
       v-if="torrent.category === 'video' && mainVideoFile"
       type="button"
       class="btn-main-action play"
+      :title="isSeries ? `Lancer la lecture de ${mainVideoFile.name}` : 'Lancer la lecture vidéo'"
       @click="emit('play-media', mainVideoFile, torrent)"
     >
-      ▶ Regarder
+      {{ watchButtonLabel }}
     </button>
+
+    <!-- Quick Episode Selector for TV Series / Complete Seasons -->
+    <div v-if="isSeries" class="series-quick-select-box">
+      <select
+        class="select-quick-ep"
+        title="Choisir directement un épisode de la série"
+        @change="onQuickEpisodeSelect"
+      >
+        <option value="" disabled selected>📺 Choisir épisode (1-{{ videoFiles.length }})...</option>
+        <option
+          v-for="(vf, idx) in videoFiles"
+          :key="vf.index"
+          :value="vf.index"
+        >
+          Ép. {{ idx + 1 }} : {{ cleanEpName(vf.name) }}
+        </option>
+      </select>
+    </div>
 
     <!-- Direct file download if single main video -->
     <a
@@ -246,5 +312,34 @@ const copyAllDownloadLinks = async () => {
 
 .accordion-chevron.open {
   transform: rotate(180deg);
+}
+
+.series-quick-select-box {
+  display: flex;
+  align-items: center;
+}
+
+.select-quick-ep {
+  background: #141724;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  color: #60a5fa;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.375rem;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.select-quick-ep:hover {
+  background: #1e2235;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.select-quick-ep option {
+  background: #12131a;
+  color: #f3f4f6;
 }
 </style>

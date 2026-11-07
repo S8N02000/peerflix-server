@@ -301,6 +301,26 @@ export function useTorrents() {
     }
   };
 
+  const selectAllFiles = (infoHash: string) => {
+    socket?.emit('select', infoHash);
+    const t = torrents.value.find((item) => item.infoHash === infoHash);
+    if (t && t.files) {
+      t.files.forEach((f) => {
+        f.selected = true;
+      });
+    }
+  };
+
+  const deselectAllFiles = (infoHash: string) => {
+    socket?.emit('deselect', infoHash);
+    const t = torrents.value.find((item) => item.infoHash === infoHash);
+    if (t && t.files) {
+      t.files.forEach((f) => {
+        f.selected = false;
+      });
+    }
+  };
+
   const cleanUnpinned = async () => {
     isLoading.value = true;
     try {
@@ -333,6 +353,8 @@ export function useTorrents() {
     resumeTorrent,
     selectFile,
     deselectFile,
+    selectAllFiles,
+    deselectAllFiles,
     cleanUnpinned,
     initSocket
   };

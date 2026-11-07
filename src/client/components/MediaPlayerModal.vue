@@ -13,7 +13,90 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'open-qr'): void;
+  (e: 'change-file', file: TorrentFileDTO): void;
 }>();
+
+const currentFile = ref<TorrentFileDTO>(props.file);
+
+// Video files in torrent (sorted numerically for series E01, E02...)
+const videoFiles = computed(() => {
+  return props.torrent.files
+    .filter((f) => f.category === 'video' && !f.name.toLowerCase().includes('sample'))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+});
+
+const isSeriesOrMultiVideo = computed(() => videoFiles.value.length > 1);
+
+const currentVideoIndex = computed(() => {
+  return videoFiles.value.findIndex((f) => f.index === currentFile.value.index);
+});
+
+const hasNextEpisode = computed(() => {
+  return currentVideoIndex.value >= 0 && currentVideoIndex.value < videoFiles.value.length - 1;
+});
+
+const hasPrevEpisode = computed(() => {
+  return currentVideoIndex.value > 0;
+});
+
+const cleanEpisodeName = (name: string): string => {
+  const match = name.match(/S(\d+)E(\d+)/i) || name.match(/E(\d+)/i);
+  if (match) {
+    return match[0].toUpperCase();
+  }
+  return name.replace(/\.[a-z0-9]+$/i, '');
+};
+
+const selectEpisode = (newFile: TorrentFileDTO) => {
+  currentFile.value = newFile;
+  emit('change-file', newFile);
+  selectedAudioTrack.value = 0;
+  remuxStartOffset.value = 0;
+  hasCodecError.value = false;
+  probeData.value = null;
+  savedResumeTime.value = null;
+  showResumeBadge.value = false;
+
+  try {
+    const rawSaved = localStorage.getItem(`peerflix_pos_${props.torrent.infoHash}_${newFile.index}`);
+    if (rawSaved) {
+      const parsed = parseFloat(rawSaved);
+      if (!isNaN(parsed) && parsed > 15) {
+        savedResumeTime.value = parsed;
+        showResumeBadge.value = true;
+      }
+    }
+  } catch {}
+
+  fetchProbeData();
+};
+
+const goToNextEpisode = () => {
+  if (hasNextEpisode.value) {
+    selectEpisode(videoFiles.value[currentVideoIndex.value + 1]);
+  }
+};
+
+const goToPrevEpisode = () => {
+  if (hasPrevEpisode.value) {
+    selectEpisode(videoFiles.value[currentVideoIndex.value - 1]);
+  }
+};
+
+const onEpisodeSelectChange = (event: Event) => {
+  const select = event.target as HTMLSelectElement;
+  const targetIndex = parseInt(select.value, 10);
+  const targetFile = videoFiles.value.find((f) => f.index === targetIndex);
+  if (targetFile) {
+    selectEpisode(targetFile);
+  }
+};
+
+const onVideoEnded = () => {
+  if (hasNextEpisode.value) {
+    goToNextEpisode();
+  }
+};
 
 const videoRef = ref<HTMLVideoElement | null>(null);
 const hasCodecError = ref<boolean>(false);
@@ -50,7 +133,7 @@ const onAudioTrackSelect = () => {
 };
 
 const vlcM3uUrl = computed(() => {
-  return `/torrents/${props.torrent.infoHash}/files/${props.file.index}/vlc.m3u`;
+  return `/torrents/${props.torrent.infoHash}/files/${currentFile.value.index}/vlc.m3u`;
 });
 
 const formatDuration = (seconds?: number): string => {
@@ -67,7 +150,7 @@ const formatDuration = (seconds?: number): string => {
 // Video stream source: direct stream or remux if non-native audio / secondary track chosen
 const effectiveVideoSrc = computed(() => {
   if (forceDirectStream.value || !probeData.value) {
-    return props.file.streamUrl;
+    return currentFile.value.streamUrl;
   }
 
   const audioTrack = probeData.value.audioStreams.find(
@@ -80,14 +163,14 @@ const effectiveVideoSrc = computed(() => {
     probeData.value.needsAudioRemux;
 
   if (needsRemux) {
-    let url = `/torrents/${props.torrent.infoHash}/remux/${props.file.index}?audioTrack=${selectedAudioTrack.value}`;
+    let url = `/torrents/${props.torrent.infoHash}/remux/${currentFile.value.index}?audioTrack=${selectedAudioTrack.value}`;
     if (remuxStartOffset.value > 0) {
       url += `&start=${remuxStartOffset.value}`;
     }
     return url;
   }
 
-  return props.file.streamUrl;
+  return currentFile.value.streamUrl;
 });
 
 const onVideoError = () => {
@@ -97,7 +180,7 @@ const onVideoError = () => {
 const fetchProbeData = async () => {
   isProbing.value = true;
   try {
-    const res = await fetch(`/torrents/${props.torrent.infoHash}/probe/${props.file.index}`, {
+    const res = await fetch(`/torrents/${props.torrent.infoHash}/probe/${currentFile.value.index}`, {
       credentials: 'include'
     });
     if (res.ok) {
@@ -140,12 +223,22 @@ const triggerAirPlayOrCast = () => {
 
 const handleKeydown = (event: KeyboardEvent) => {
   // If target is an input or textarea, don't intercept
-  if (['INPUT', 'TEXTAREA'].includes((event.target as HTMLElement)?.tagName)) {
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes((event.target as HTMLElement)?.tagName)) {
     return;
   }
 
   if (event.key === 'Escape') {
     emit('close');
+    return;
+  }
+
+  // Episode navigation hotkeys [ and ] or p and n
+  if (event.key === '[' || event.key === 'p' || event.key === 'P') {
+    goToPrevEpisode();
+    return;
+  }
+  if (event.key === ']' || event.key === 'n' || event.key === 'N') {
+    goToNextEpisode();
     return;
   }
 
@@ -178,8 +271,96 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
 };
 
+const storageKey = computed(() => `peerflix_pos_${props.torrent.infoHash}_${currentFile.value.index}`);
+
+const getInitialSavedTime = (): number | null => {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(`peerflix_pos_${props.torrent.infoHash}_${currentFile.value.index}`);
+      if (raw) {
+        const parsed = parseFloat(raw);
+        if (!isNaN(parsed) && parsed > 15) return parsed;
+      }
+    }
+  } catch {
+    // Ignore
+  }
+  return null;
+};
+
+const initialSaved = getInitialSavedTime();
+const savedResumeTime = ref<number | null>(initialSaved);
+const showResumeBadge = ref<boolean>(initialSaved !== null);
+let lastSavedSecond = 0;
+
+const onLoadedMetadata = () => {
+  if (savedResumeTime.value && savedResumeTime.value > 15 && videoRef.value) {
+    // If not in remux mode with offset already applied
+    if (remuxStartOffset.value === 0) {
+      videoRef.value.currentTime = savedResumeTime.value;
+    }
+    showResumeBadge.value = true;
+  }
+};
+
+const onTimeUpdate = () => {
+  const video = videoRef.value;
+  if (!video) return;
+
+  const currentExact = video.currentTime + remuxStartOffset.value;
+  const currentSec = Math.floor(currentExact);
+
+  // Throttled save every 5 seconds
+  if (Math.abs(currentSec - lastSavedSecond) >= 5) {
+    lastSavedSecond = currentSec;
+    const duration = probeData.value?.durationSeconds || video.duration;
+
+    // Clear progress if near the end (> 95% or within last 2 minutes)
+    if (duration && duration > 30 && (currentExact / duration > 0.95 || duration - currentExact < 120)) {
+      try {
+        localStorage.removeItem(storageKey.value);
+        showResumeBadge.value = false;
+      } catch {
+        // Ignore
+      }
+    } else if (currentSec > 15) {
+      try {
+        localStorage.setItem(storageKey.value, currentSec.toString());
+      } catch {
+        // Ignore
+      }
+    }
+  }
+};
+
+const restartFromBeginning = () => {
+  try {
+    localStorage.removeItem(storageKey.value);
+  } catch {
+    // Ignore
+  }
+  savedResumeTime.value = null;
+  showResumeBadge.value = false;
+  remuxStartOffset.value = 0;
+  if (videoRef.value) {
+    videoRef.value.currentTime = 0;
+  }
+};
+
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown);
+  try {
+    const rawSaved = localStorage.getItem(storageKey.value);
+    if (rawSaved) {
+      const parsed = parseFloat(rawSaved);
+      if (!isNaN(parsed) && parsed > 15) {
+        savedResumeTime.value = parsed;
+        showResumeBadge.value = true;
+      }
+    }
+  } catch {
+    // Ignore
+  }
   fetchProbeData();
 });
 
@@ -193,111 +374,15 @@ onUnmounted(() => {
     <div class="modal-container">
       <!-- Modal Header -->
       <div class="modal-header">
-        <div class="header-info">
-          <span class="badge-media">🎬 Lecteur Vidéo</span>
-          <h2 class="media-title" :title="file.name">{{ file.name }}</h2>
-
-          <!-- Media Prober Badges -->
-          <div v-if="probeData" class="probe-badges">
-            <span v-if="probeData.videoStreams[0]" class="probe-badge video">
-              🎬 {{ probeData.videoStreams[0].codec.toUpperCase() }}
-              {{ probeData.videoStreams[0].height ? (probeData.videoStreams[0].height >= 2000 ? '4K' : probeData.videoStreams[0].height + 'p') : '' }} ✓
+        <!-- Top Row: Badge + Clean Non-wrapping Title + Close Button -->
+        <div class="header-top-row">
+          <div class="header-title-box">
+            <span class="badge-media">
+              {{ isSeriesOrMultiVideo ? `📺 Épisode ${currentVideoIndex + 1} / ${videoFiles.length}` : '🎬 Lecteur Vidéo' }}
             </span>
-
-            <span v-if="probeData.durationSeconds" class="probe-badge duration">
-              ⏱ Durée : {{ formatDuration(probeData.durationSeconds) }}
-            </span>
-
-            <span v-if="probeData.needsAudioRemux" class="probe-badge remux">
-              🔊 Audio : Conversion AAC auto ✓
-            </span>
-          </div>
-        </div>
-
-        <div class="header-actions">
-          <!-- Audio Track Selector if multiple or remuxed -->
-          <div v-if="probeData && probeData.audioStreams.length > 0" class="audio-track-selector">
-            <label for="audio-track-select" class="selector-label">🔊 Piste audio :</label>
-            <select
-              id="audio-track-select"
-              v-model="selectedAudioTrack"
-              class="select-audio"
-              @change="onAudioTrackSelect"
-            >
-              <option
-                v-for="track in probeData.audioStreams"
-                :key="track.audioTrackIndex"
-                :value="track.audioTrackIndex"
-              >
-                Piste {{ track.audioTrackIndex + 1 }} : {{ track.language ? track.language.toUpperCase() : 'Langue inconnue' }}
-                {{ track.title ? `(${track.title})` : '' }} - {{ track.codec.toUpperCase() }}
-                {{ !track.browserSupported ? '→ AAC' : '' }}
-              </option>
-            </select>
+            <h2 class="media-title" :title="currentFile.name">{{ currentFile.name }}</h2>
           </div>
 
-          <!-- Stream Mode Toggle (Remux AAC vs Flux direct) -->
-          <button
-            v-if="probeData && probeData.needsAudioRemux"
-            type="button"
-            class="btn-action-icon btn-mode-toggle"
-            :class="{ 'is-direct': isDirectMode }"
-            :title="isDirectMode ? 'Passer en conversion AAC auto' : 'Passer en flux direct original sans conversion'"
-            @click="toggleStreamMode"
-          >
-            {{ isDirectMode ? '🎞 Flux direct' : '⚡ Remux AAC' }}
-          </button>
-
-          <!-- VLC M3U download link (universal for PC/Mac/Linux) -->
-          <a
-            :href="vlcM3uUrl"
-            class="btn-action-icon btn-vlc"
-            title="Télécharger la playlist M3U pour lancer instantanément dans VLC (sans erreur de protocole)"
-          >
-            🟠 VLC
-          </a>
-
-          <!-- Picture in picture -->
-          <button
-            type="button"
-            class="btn-action-icon"
-            title="Mode Picture-in-Picture (fenêtre flottante)"
-            @click="triggerPictureInPicture"
-          >
-            🖼 PiP
-          </button>
-
-          <!-- Cast / Airplay -->
-          <button
-            type="button"
-            class="btn-action-icon"
-            title="Diffuser via AirPlay ou Chromecast"
-            @click="triggerAirPlayOrCast"
-          >
-            📺 Cast
-          </button>
-
-          <!-- QR Code Modal -->
-          <button
-            type="button"
-            class="btn-qr"
-            title="Afficher le QR Code pour lire sur TV / Mobile"
-            @click="emit('open-qr')"
-          >
-            📱 QR Code
-          </button>
-
-          <!-- Download -->
-          <a
-            :href="file.downloadUrl"
-            class="btn-action-icon"
-            download
-            title="Télécharger le fichier directement"
-          >
-            ⬇ Télécharger
-          </a>
-
-          <!-- Close -->
           <button
             type="button"
             class="btn-close"
@@ -305,6 +390,161 @@ onUnmounted(() => {
             @click="emit('close')"
           >
             ✕
+          </button>
+        </div>
+
+        <!-- Bottom Row: Media Prober Badges + Episode Navigator + Action Controls -->
+        <div class="header-bottom-row">
+          <!-- Left: Media Prober Badges -->
+          <div class="header-badges-group">
+            <div v-if="probeData" class="probe-badges">
+              <span v-if="probeData.videoStreams[0]" class="probe-badge video">
+                🎬 {{ probeData.videoStreams[0].codec.toUpperCase() }}
+                {{ probeData.videoStreams[0].height ? (probeData.videoStreams[0].height >= 2000 ? '4K' : probeData.videoStreams[0].height + 'p') : '' }} ✓
+              </span>
+
+              <span v-if="probeData.durationSeconds" class="probe-badge duration">
+                ⏱ Durée : {{ formatDuration(probeData.durationSeconds) }}
+              </span>
+
+              <span v-if="probeData.needsAudioRemux" class="probe-badge remux">
+                🔊 Audio : Conversion AAC auto ✓
+              </span>
+            </div>
+          </div>
+
+          <!-- Center: Episode Navigator for TV Series / Complete Season Packs -->
+          <div v-if="isSeriesOrMultiVideo" class="episode-navigator">
+            <button
+              type="button"
+              class="btn-ep-nav"
+              :disabled="!hasPrevEpisode"
+              title="Épisode précédent (Touche [)"
+              @click="goToPrevEpisode"
+            >
+              ⏮
+            </button>
+            <div class="ep-select-wrapper">
+              <select
+                :value="currentFile.index"
+                class="select-episode"
+                title="Choisir un épisode"
+                @change="onEpisodeSelectChange"
+              >
+                <option
+                  v-for="(vf, idx) in videoFiles"
+                  :key="vf.index"
+                  :value="vf.index"
+                >
+                  Ép. {{ idx + 1 }} : {{ cleanEpisodeName(vf.name) }}
+                </option>
+              </select>
+            </div>
+            <button
+              type="button"
+              class="btn-ep-nav"
+              :disabled="!hasNextEpisode"
+              title="Épisode suivant (Touche ])"
+              @click="goToNextEpisode"
+            >
+              ⏭
+            </button>
+          </div>
+
+          <!-- Right: Audio & Action Tools -->
+          <div class="header-actions">
+            <!-- Audio Track Selector if multiple or remuxed -->
+            <div v-if="probeData && probeData.audioStreams.length > 0" class="audio-track-selector">
+              <label for="audio-track-select" class="selector-label">🔊 Piste audio :</label>
+              <select
+                id="audio-track-select"
+                v-model="selectedAudioTrack"
+                class="select-audio"
+                @change="onAudioTrackSelect"
+              >
+                <option
+                  v-for="track in probeData.audioStreams"
+                  :key="track.audioTrackIndex"
+                  :value="track.audioTrackIndex"
+                >
+                  Piste {{ track.audioTrackIndex + 1 }} : {{ track.language ? track.language.toUpperCase() : 'Langue inconnue' }}
+                  {{ track.title ? `(${track.title})` : '' }} - {{ track.codec.toUpperCase() }}
+                  {{ !track.browserSupported ? '→ AAC' : '' }}
+                </option>
+              </select>
+            </div>
+
+            <!-- Stream Mode Toggle (Remux AAC vs Flux direct) -->
+            <button
+              v-if="probeData && probeData.needsAudioRemux"
+              type="button"
+              class="btn-action-icon btn-mode-toggle"
+              :class="{ 'is-direct': isDirectMode }"
+              :title="isDirectMode ? 'Passer en conversion AAC auto' : 'Passer en flux direct original sans conversion'"
+              @click="toggleStreamMode"
+            >
+              {{ isDirectMode ? '🎞 Flux direct' : '⚡ Remux AAC' }}
+            </button>
+
+            <!-- VLC M3U download link (universal for PC/Mac/Linux) -->
+            <a
+              :href="vlcM3uUrl"
+              class="btn-action-icon btn-vlc"
+              title="Télécharger la playlist M3U pour lancer instantanément dans VLC (sans erreur de protocole)"
+            >
+              🟠 VLC
+            </a>
+
+            <!-- Picture in picture -->
+            <button
+              type="button"
+              class="btn-action-icon"
+              title="Mode Picture-in-Picture (fenêtre flottante)"
+              @click="triggerPictureInPicture"
+            >
+              🖼 PiP
+            </button>
+
+            <!-- Cast / Airplay -->
+            <button
+              type="button"
+              class="btn-action-icon"
+              title="Diffuser via AirPlay ou Chromecast"
+              @click="triggerAirPlayOrCast"
+            >
+              📺 Cast
+            </button>
+
+            <!-- QR Code Modal -->
+            <button
+              type="button"
+              class="btn-qr"
+              title="Afficher le QR Code pour lire sur TV / Mobile"
+              @click="emit('open-qr')"
+            >
+              📱 QR Code
+            </button>
+
+            <!-- Download -->
+            <a
+              :href="currentFile.downloadUrl"
+              class="btn-action-icon"
+              download
+              title="Télécharger le fichier directement"
+            >
+              ⬇ Télécharger
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resume Playback Banner -->
+      <div v-if="showResumeBadge && savedResumeTime" class="resume-info-banner">
+        <span class="resume-banner-icon">⏱</span>
+        <div class="resume-banner-text">
+          <span>Reprise de lecture à <strong>{{ formatDuration(savedResumeTime) }}</strong></span>
+          <button type="button" class="btn-restart-video" @click="restartFromBeginning">
+            ↺ Recommencer depuis le début
           </button>
         </div>
       </div>
@@ -328,16 +568,19 @@ onUnmounted(() => {
           crossorigin="use-credentials"
           x-webkit-airplay="allow"
           :src="effectiveVideoSrc"
+          @loadedmetadata="onLoadedMetadata"
+          @timeupdate="onTimeUpdate"
+          @ended="onVideoEnded"
           @error="onVideoError"
         >
           <!-- External .srt/.vtt track if available -->
           <track
-            v-if="file.subtitleUrl"
+            v-if="currentFile.subtitleUrl"
             kind="subtitles"
             label="Sous-titres externes"
             srclang="fr"
             default
-            :src="file.subtitleUrl"
+            :src="currentFile.subtitleUrl"
           />
 
           <!-- Embedded text subtitles from MKV container via ffmpeg (excluding bitmap PGS subtitles) -->
@@ -348,7 +591,7 @@ onUnmounted(() => {
               kind="subtitles"
               :label="`${sub.language ? sub.language.toUpperCase() : 'Sous-titre'} ${sub.title ? '(' + sub.title + ')' : ''}`"
               :srclang="sub.language || 'fr'"
-              :src="`/torrents/${torrent.infoHash}/embedded-subtitles/${file.index}/${sub.subTrackIndex}`"
+              :src="`/torrents/${torrent.infoHash}/embedded-subtitles/${currentFile.index}/${sub.subTrackIndex}`"
             />
           </template>
           Votre navigateur ne prend pas en charge la lecture vidéo HTML5.
@@ -358,7 +601,7 @@ onUnmounted(() => {
         <PlayerErrorOverlay
           v-if="hasCodecError"
           :vlc-direct-url="vlcM3uUrl"
-          :download-url="file.downloadUrl"
+          :download-url="currentFile.downloadUrl"
           :show-direct-option="!isDirectMode"
           @switch-direct="setStreamMode('direct')"
         />
@@ -397,21 +640,27 @@ onUnmounted(() => {
 }
 
 .modal-header {
-  padding: 1rem 1.25rem;
+  padding: 0.85rem 1.25rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.header-top-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  flex-wrap: wrap;
+  width: 100%;
 }
 
-.header-info {
+.header-title-box {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  min-width: 0;
   flex: 1;
-  min-width: 200px;
 }
 
 .badge-media {
@@ -423,14 +672,79 @@ onUnmounted(() => {
   padding: 0.2rem 0.5rem;
   border-radius: 0.375rem;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .media-title {
   margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 1.05rem;
+  font-weight: 700;
   color: #f8fafc;
-  word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.header-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.header-badges-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.episode-navigator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  padding: 0.2rem 0.45rem;
+  border-radius: 8px;
+}
+
+.btn-ep-nav {
+  background: none;
+  border: none;
+  color: #60a5fa;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  line-height: 1;
+  transition: all 0.15s;
+}
+
+.btn-ep-nav:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.25);
+  color: #ffffff;
+}
+
+.btn-ep-nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.select-episode {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f1f5f9;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  max-width: 240px;
 }
 
 .probe-badges {
@@ -644,6 +958,46 @@ onUnmounted(() => {
 }
 .btn-banner-link.vlc:hover {
   background: #ea580c;
+}
+
+.resume-info-banner {
+  background: rgba(16, 185, 129, 0.12);
+  border-bottom: 1px solid rgba(16, 185, 129, 0.25);
+  padding: 0.5rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.8125rem;
+  color: #a7f3d0;
+}
+
+.resume-banner-icon {
+  font-size: 1.1rem;
+}
+
+.resume-banner-text {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 1rem;
+}
+
+.btn-restart-video {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-restart-video:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.35);
 }
 
 .video-element {

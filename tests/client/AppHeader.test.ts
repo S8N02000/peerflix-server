@@ -83,4 +83,24 @@ describe('AppHeader.vue Component', () => {
 
     confirmSpy.mockRestore();
   });
+
+  it('should emit open-c411 when C411 profile widget is clicked', async () => {
+    const wrapper = mount(AppHeader, {
+      props: {
+        systemStatus: makeStatus(50),
+        c411Profile: {
+          enabled: true,
+          uploadedBytes: 5000000000000,
+          zenBalance: 150,
+          freeleechActive: true
+        }
+      }
+    });
+
+    const c411Widget = wrapper.find('.c411-header-widget');
+    expect(c411Widget.exists()).toBe(true);
+    await c411Widget.trigger('click');
+
+    expect(wrapper.emitted('open-c411')).toBeTruthy();
+  });
 });

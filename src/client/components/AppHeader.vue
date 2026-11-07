@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import type { SystemStatusDTO } from '../../shared/types.js';
+import type { SystemStatusDTO, C411ProfileDTO } from '../../shared/types.js';
 import { formatBytes } from '../composables/useTorrents.js';
 import { getExternalBaseUrl } from '../utils/auth-url.js';
 
 const props = defineProps<{
   systemStatus: SystemStatusDTO | null;
+  c411Profile?: C411ProfileDTO | null;
 }>();
 
 const emit = defineEmits<{
   (e: 'clean-unpinned'): void;
+  (e: 'open-c411'): void;
 }>();
 
 const copied = ref(false);
@@ -67,6 +69,25 @@ const copyPlaylistUrl = async () => {
     </div>
 
     <div class="header-right">
+      <!-- C411 User Profile Widget -->
+      <div
+        v-if="c411Profile?.enabled"
+        class="c411-header-widget interactive"
+        title="C411 Connecté - Cliquez pour ouvrir l'onglet Recherche"
+        @click="emit('open-c411')"
+      >
+        <span class="c411-logo-badge">C411</span>
+        <span v-if="c411Profile.uploadedBytes !== undefined" class="c411-stat upload">
+          ↑ {{ formatBytes(c411Profile.uploadedBytes) }}
+        </span>
+        <span v-if="c411Profile.zenBalance !== undefined" class="c411-stat zen">
+          {{ c411Profile.zenBalance }} Z
+        </span>
+        <span v-if="c411Profile.freeleechActive" class="c411-freeleech-badge">
+          ⚡ Freeleech
+        </span>
+      </div>
+
       <!-- Disk Gauge -->
       <div v-if="systemStatus?.disk" class="disk-gauge-container" :class="diskClass">
         <div class="disk-info">
@@ -266,6 +287,59 @@ const copyPlaylistUrl = async () => {
 .btn-copy-playlist:hover {
   background: rgba(255, 255, 255, 0.12);
   color: #f3f4f6;
+}
+
+.c411-header-widget {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  transition: all 0.15s ease;
+}
+
+.c411-header-widget.interactive {
+  cursor: pointer;
+}
+
+.c411-header-widget.interactive:hover {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: #10b981;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+  transform: translateY(-1px);
+}
+
+.c411-logo-badge {
+  background: #10b981;
+  color: #0b0f19;
+  font-weight: 800;
+  border-radius: 0.2rem;
+  padding: 0.05rem 0.3rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+}
+
+.c411-stat.upload {
+  color: #34d399;
+  font-weight: 600;
+}
+
+.c411-stat.zen {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.c411-freeleech-badge {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: 0.2rem;
+  padding: 0.05rem 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 700;
 }
 
 @media (max-width: 768px) {

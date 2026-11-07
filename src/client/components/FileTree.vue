@@ -13,11 +13,17 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'select-file', index: number): void;
   (e: 'deselect-file', index: number): void;
+  (e: 'select-all'): void;
+  (e: 'deselect-all'): void;
   (e: 'play-media', file: TorrentFileDTO): void;
   (e: 'open-qr', file: TorrentFileDTO): void;
   (e: 'preview-nfo', file: TorrentFileDTO): void;
   (e: 'compute-hash', file: TorrentFileDTO): void;
 }>();
+
+const selectedFilesCount = computed(() => {
+  return props.files.filter((f) => f.selected).length;
+});
 
 export interface TreeNode {
   name: string;
@@ -115,6 +121,31 @@ const treeRoot = computed<TreeNode[]>(() => {
 
 <template>
   <div class="file-tree-container">
+    <!-- Batch selection toolbar if more than 1 file -->
+    <div v-if="files.length > 1" class="file-tree-toolbar">
+      <span class="selection-summary">
+        📁 <strong>{{ selectedFilesCount }}</strong> / {{ files.length }} fichiers sélectionnés
+      </span>
+      <div class="selection-actions">
+        <button
+          type="button"
+          class="btn-batch-select"
+          title="Sélectionner tous les fichiers du torrent"
+          @click="emit('select-all')"
+        >
+          ☑ Tout cocher
+        </button>
+        <button
+          type="button"
+          class="btn-batch-select"
+          title="Désélectionner tous les fichiers du torrent"
+          @click="emit('deselect-all')"
+        >
+          ☐ Tout décocher
+        </button>
+      </div>
+    </div>
+
     <div v-if="treeRoot.length === 0" class="empty-files">
       Aucun fichier visible (vérifiez vos filtres).
     </div>
@@ -148,6 +179,50 @@ const treeRoot = computed<TreeNode[]>(() => {
   border-radius: 0.5rem;
   padding: 0.75rem;
   border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.file-tree-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0.6rem;
+  margin-bottom: 0.4rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 0.375rem;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.selection-summary {
+  color: #94a3b8;
+}
+
+.selection-summary strong {
+  color: #38bdf8;
+}
+
+.selection-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.btn-batch-select {
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-batch-select:hover {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.3);
 }
 
 .empty-files {

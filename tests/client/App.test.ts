@@ -185,4 +185,17 @@ describe('App.vue Main Component', () => {
 
     expect(wrapper.findComponent({ name: 'MediaPlayerModal' }).exists()).toBe(false);
   });
+
+  it('switches between Mes Téléchargements and Recherche C411 tabs', async () => {
+    const wrapper = mount(App);
+
+    // Downloads tab should be active by default
+    const navTabs = wrapper.findAll('.view-nav-tab');
+    expect(navTabs.length).toBeGreaterThanOrEqual(1);
+    expect(navTabs[0].classes()).toContain('active');
+    expect(navTabs[0].text()).toContain('Mes Téléchargements');
+    expect(navTabs[0].text()).toContain('2'); // 2 torrents
+
+    expect(wrapper.find('.tab-content-downloads').isVisible()).toBe(true);
+  });
 });

@@ -19,6 +19,8 @@ const emit = defineEmits<{
   (e: 'delete', infoHash: string): void;
   (e: 'select-file', infoHash: string, fileIndex: number): void;
   (e: 'deselect-file', infoHash: string, fileIndex: number): void;
+  (e: 'select-all', infoHash: string): void;
+  (e: 'deselect-all', infoHash: string): void;
   (e: 'play-media', file: TorrentFileDTO, torrent: TorrentDTO): void;
   (e: 'open-qr', file: TorrentFileDTO, torrent: TorrentDTO): void;
   (e: 'preview-nfo', file: TorrentFileDTO, torrent: TorrentDTO): void;
@@ -60,6 +62,8 @@ const isExpanded = ref(false);
         :hide-junk-files="hideJunkFiles"
         @select-file="emit('select-file', torrent.infoHash, $event)"
         @deselect-file="emit('deselect-file', torrent.infoHash, $event)"
+        @select-all="emit('select-all', torrent.infoHash)"
+        @deselect-all="emit('deselect-all', torrent.infoHash)"
         @play-media="emit('play-media', $event, torrent)"
         @open-qr="emit('open-qr', $event, torrent)"
         @preview-nfo="emit('preview-nfo', $event, torrent)"

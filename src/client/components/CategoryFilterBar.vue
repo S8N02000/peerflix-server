@@ -4,7 +4,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 const props = defineProps<{
   selectedCategory: string;
   searchQuery: string;
-  hideJunkFiles: boolean;
+  hideJunkFiles?: boolean;
   sortBy?: 'recent' | 'name' | 'size' | 'progress';
   counts: {
     all: number;
@@ -18,7 +18,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:selectedCategory', category: string): void;
   (e: 'update:searchQuery', query: string): void;
-  (e: 'update:hideJunkFiles', val: boolean): void;
   (e: 'update:sortBy', val: 'recent' | 'name' | 'size' | 'progress'): void;
 }>();
 
@@ -125,15 +124,6 @@ onUnmounted(() => {
           @input="emit('update:searchQuery', ($event.target as HTMLInputElement).value)"
         />
       </div>
-
-      <label class="toggle-junk" title="Masque les liens .url, textes superflus et extraits vidéo sample">
-        <input
-          type="checkbox"
-          :checked="hideJunkFiles"
-          @change="emit('update:hideJunkFiles', ($event.target as HTMLInputElement).checked)"
-        />
-        <span>Masquer fichiers inutiles</span>
-      </label>
     </div>
   </div>
 </template>
@@ -258,20 +248,5 @@ onUnmounted(() => {
 
 .search-input::placeholder {
   color: #64748b;
-}
-
-.toggle-junk {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.75rem;
-  color: #94a3b8;
-  cursor: pointer;
-  user-select: none;
-}
-
-.toggle-junk input {
-  accent-color: #10b981;
-  cursor: pointer;
 }
 </style>

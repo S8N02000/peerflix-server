@@ -159,6 +159,87 @@ describe('MediaPlayerModal & QrCodeModal Components', () => {
       await qrBtn.trigger('click');
       expect(wrapper.emitted('open-qr')).toBeTruthy();
     });
+
+    it('shows resume badge if saved position exists in localStorage and allows restart', async () => {
+      const storageKey = `peerflix_pos_${mockTorrent.infoHash}_${mockFile.index}`;
+      localStorage.setItem(storageKey, '3720'); // 1h 2m 0s
+
+      const wrapper = mount(MediaPlayerModal, {
+        props: {
+          file: mockFile,
+          torrent: mockTorrent,
+        },
+      });
+
+      expect(wrapper.text()).toContain('Reprise de lecture à');
+      expect(wrapper.text()).toContain('1h 02m');
+
+      const restartBtn = wrapper.find('.btn-restart-video');
+      expect(restartBtn.exists()).toBe(true);
+      await restartBtn.trigger('click');
+
+      expect(localStorage.getItem(storageKey)).toBeNull();
+      expect(wrapper.find('.resume-info-banner').exists()).toBe(false);
+    });
+
+    it('handles complete TV season with multiple episodes, clean titles, and next/prev episode navigation', async () => {
+      const ep1: TorrentFileDTO = {
+        index: 0,
+        name: 'Made.in.Abyss.S01E01.VOSTFR.1080p.mkv',
+        path: 'Made.in.Abyss.S01E01.VOSTFR.1080p.mkv',
+        folderPath: '',
+        length: 350000000,
+        category: 'video',
+        selected: true,
+        isComplete: false,
+        streamUrl: '/torrents/123/files/0',
+        downloadUrl: '/torrents/123/files/0?download=1',
+      };
+      const ep2: TorrentFileDTO = {
+        index: 1,
+        name: 'Made.in.Abyss.S01E02.VOSTFR.1080p.mkv',
+        path: 'Made.in.Abyss.S01E02.VOSTFR.1080p.mkv',
+        folderPath: '',
+        length: 500000000,
+        category: 'video',
+        selected: true,
+        isComplete: false,
+        streamUrl: '/torrents/123/files/1',
+        downloadUrl: '/torrents/123/files/1?download=1',
+      };
+
+      const seriesTorrent: TorrentDTO = {
+        ...mockTorrent,
+        files: [ep1, ep2],
+      };
+
+      const wrapper = mount(MediaPlayerModal, {
+        props: {
+          file: ep1,
+          torrent: seriesTorrent,
+        },
+      });
+
+      // Header should display Episode counter and clean title
+      expect(wrapper.text()).toContain('Épisode 1 / 2');
+      expect(wrapper.text()).toContain('Made.in.Abyss.S01E01.VOSTFR.1080p.mkv');
+
+      // Episode navigator should exist
+      const epNav = wrapper.find('.episode-navigator');
+      expect(epNav.exists()).toBe(true);
+
+      const navButtons = epNav.findAll('.btn-ep-nav');
+      expect(navButtons.length).toBe(2);
+      expect((navButtons[0].element as HTMLButtonElement).disabled).toBe(true); // Prev disabled on Ep 1
+      expect((navButtons[1].element as HTMLButtonElement).disabled).toBe(false); // Next enabled
+
+      // Click Next Episode
+      await navButtons[1].trigger('click');
+
+      expect(wrapper.emitted('change-file')).toBeTruthy();
+      expect(wrapper.text()).toContain('Épisode 2 / 2');
+      expect(wrapper.text()).toContain('Made.in.Abyss.S01E02.VOSTFR.1080p.mkv');
+    });
   });
 
   describe('QrCodeModal', () => {

@@ -131,4 +131,29 @@ describe('FileTree.vue Component', () => {
     expect(wrapper.text()).toContain('D');
     expect(wrapper.text()).toContain('file.exe');
   });
+
+  it('should render batch selection buttons when files.length > 1 and emit select-all / deselect-all', async () => {
+    const wrapper = mount(FileTree, {
+      props: {
+        files: sampleFiles,
+        infoHash: 'batch_hash',
+        hideJunkFiles: false
+      }
+    });
+
+    const toolbar = wrapper.find('.file-tree-toolbar');
+    expect(toolbar.exists()).toBe(true);
+    expect(wrapper.text()).toContain('2 / 4 fichiers sélectionnés');
+
+    const buttons = wrapper.findAll('.btn-batch-select');
+    expect(buttons.length).toBe(2);
+
+    // Click "Tout cocher"
+    await buttons[0].trigger('click');
+    expect(wrapper.emitted('select-all')).toBeTruthy();
+
+    // Click "Tout décocher"
+    await buttons[1].trigger('click');
+    expect(wrapper.emitted('deselect-all')).toBeTruthy();
+  });
 });
