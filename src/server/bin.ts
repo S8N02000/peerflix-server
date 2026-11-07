@@ -53,7 +53,7 @@ export async function startServer(options?: Partial<CliOptions>): Promise<{
   await store.init();
 
   // 2. Initialize disk monitor and scheduler
-  const diskMonitor = new DiskMonitor(store.getDownloadPath());
+  const diskMonitor = new DiskMonitor(store.getDownloadPath(), undefined, undefined, store);
   const scheduler = new AutoCleanScheduler();
 
   // 3. Create Express app

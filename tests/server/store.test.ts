@@ -226,4 +226,50 @@ describe('Torrent Store Service', () => {
     await store.destroyAll();
     parseSpy.mockRestore();
   });
+
+  it('should accurately calculate total allocated and downloaded bytes across torrents', async () => {
+    const store = new TorrentStore({
+      configPath: tempConfigDir,
+      downloadPath: tempDownloadDir
+    });
+    await store.init();
+
+    // Directly populate metadata with 2 sample torrents
+    (store as any).metadata.set('hash1', {
+      infoHash: 'hash1',
+      name: 'Movie 1',
+      length: 10 * 1024 * 1024,
+      addedAt: Date.now(),
+      pinned: false,
+      downloadedBytes: 10 * 1024 * 1024,
+      isFullyDownloaded: true
+    });
+
+    (store as any).metadata.set('hash2', {
+      infoHash: 'hash2',
+      name: 'Series 1',
+      length: 50 * 1024 * 1024,
+      addedAt: Date.now(),
+      pinned: false,
+      downloadedBytes: 5 * 1024 * 1024,
+      isFullyDownloaded: false,
+      files: [
+        { index: 0, name: 'ep1.mp4', path: 'ep1.mp4', length: 25 * 1024 * 1024, selected: true },
+        { index: 1, name: 'ep2.mp4', path: 'ep2.mp4', length: 25 * 1024 * 1024, selected: false }
+      ]
+    });
+
+    // hash1 = 10 MB, hash2 selected = 25 MB (ep1 selected, ep2 deselected) -> Total = 35 MB
+    expect(store.getTorrentAllocatedBytes('hash1')).toBe(10 * 1024 * 1024);
+    expect(store.getTorrentAllocatedBytes('hash2')).toBe(25 * 1024 * 1024);
+    expect(store.getTotalAllocatedBytes()).toBe(35 * 1024 * 1024);
+
+    // Total excluding hash2 should be hash1 only
+    expect(store.getTotalAllocatedBytes('hash2')).toBe(10 * 1024 * 1024);
+
+    // Downloaded: hash1 is fully downloaded (10 MB), hash2 has 5 MB downloaded -> Total = 15 MB
+    expect(store.getTotalDownloadedBytes()).toBe(15 * 1024 * 1024);
+
+    await store.destroyAll();
+  });
 });

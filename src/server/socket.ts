@@ -49,7 +49,7 @@ export function setupSocketIO(
       systemStatsTimer = setInterval(async () => {
         if (io.engine.clientsCount === 0) return;
         try {
-          const disk = await diskMonitor.getDiskStats(store.getDownloadPath());
+          const disk = await diskMonitor.getDiskStats(store.getDownloadPath(), store);
           const nextCleanAt = scheduler.getNextCleanAtISO();
           let totalDownSpeed = 0;
           for (const engine of store.list()) {

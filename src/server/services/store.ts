@@ -404,6 +404,64 @@ export class TorrentStore extends EventEmitter {
     return Array.from(this.metadata.values());
   }
 
+  /**
+   * Get total allocated bytes for a given torrent (considers deselected files)
+   */
+  public getTorrentAllocatedBytes(infoHash: string): number {
+    const meta = this.metadata.get(infoHash);
+    const engine = this.torrents.get(infoHash);
+
+    // If file-level selection is known, sum only selected files
+    if (meta?.files && meta.files.length > 0) {
+      return meta.files
+        .filter((f) => f.selected)
+        .reduce((sum, f) => sum + (f.length || 0), 0);
+    }
+
+    if (typeof meta?.length === 'number' && meta.length > 0) {
+      return meta.length;
+    }
+
+    if (typeof engine?.torrent?.length === 'number' && engine.torrent.length > 0) {
+      return engine.torrent.length;
+    }
+
+    return 0;
+  }
+
+  /**
+   * Get total allocated bytes across all torrents (or excluding a specific infoHash)
+   * This represents the total space committed as if ALL torrents were fully downloaded
+   */
+  public getTotalAllocatedBytes(excludeInfoHash?: string): number {
+    let total = 0;
+    for (const infoHash of this.metadata.keys()) {
+      if (excludeInfoHash && infoHash === excludeInfoHash) {
+        continue;
+      }
+      total += this.getTorrentAllocatedBytes(infoHash);
+    }
+    return total;
+  }
+
+  /**
+   * Get total bytes downloaded on disk so far across all torrents
+   */
+  public getTotalDownloadedBytes(): number {
+    let total = 0;
+    for (const [infoHash, meta] of this.metadata.entries()) {
+      const engine = this.torrents.get(infoHash) as any;
+      if (meta.isFullyDownloaded) {
+        total += this.getTorrentAllocatedBytes(infoHash);
+      } else if (engine && typeof engine._maxDownloadedBytes === 'number') {
+        total += engine._maxDownloadedBytes;
+      } else if (typeof meta.downloadedBytes === 'number') {
+        total += meta.downloadedBytes;
+      }
+    }
+    return total;
+  }
+
   public async save(): Promise<void> {
     // Sync current engine states (downloaded bytes, paused) into metadata before saving
     for (const [infoHash, meta] of this.metadata.entries()) {

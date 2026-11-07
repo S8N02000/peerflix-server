@@ -33,6 +33,27 @@ const diskClass = computed(() => {
   return 'disk-normal';
 });
 
+const displayPercent = computed(() => {
+  const disk = props.systemStatus?.disk;
+  if (!disk) return 0;
+  return typeof disk.quotaPercent === 'number' ? disk.quotaPercent : disk.usedPercent ?? 0;
+});
+
+const storageTooltip = computed(() => {
+  const disk = props.systemStatus?.disk;
+  if (!disk) return '';
+  if (typeof disk.maxQuotaBytes === 'number' && disk.maxQuotaBytes > 0) {
+    const allocated = formatBytes(disk.peerflixUsedBytes ?? 0);
+    const downloaded = disk.peerflixDownloadedBytes !== undefined ? formatBytes(disk.peerflixDownloadedBytes) : null;
+    const quota = formatBytes(disk.maxQuotaBytes);
+    const freeHost = formatBytes(disk.freeBytes);
+    return downloaded
+      ? `Quota Peerflix : ${allocated} alloués / ${quota} (${downloaded} téléchargés sur disque) • ${freeHost} libres sur le serveur`
+      : `Quota Peerflix : ${allocated} alloués / ${quota} • ${freeHost} libres sur le serveur`;
+  }
+  return `Espace total serveur : ${formatBytes(disk.usedBytes)} utilisés sur ${formatBytes(disk.totalBytes)} (${formatBytes(disk.freeBytes)} libres)`;
+});
+
 const formattedStorage = computed(() => {
   const disk = props.systemStatus?.disk;
   if (!disk) return 'Stockage : Inconnu';
@@ -101,15 +122,20 @@ const copyPlaylistUrl = async () => {
       </div>
 
       <!-- Disk Gauge -->
-      <div v-if="systemStatus?.disk" class="disk-gauge-container" :class="diskClass">
+      <div
+        v-if="systemStatus?.disk"
+        class="disk-gauge-container"
+        :class="diskClass"
+        :title="storageTooltip"
+      >
         <div class="disk-info">
           <span class="disk-text">{{ formattedStorage }}</span>
-          <span class="disk-percent font-mono">{{ systemStatus.disk.usedPercent }}%</span>
+          <span class="disk-percent font-mono">{{ displayPercent }}%</span>
         </div>
         <div class="disk-progress-bar">
           <div
             class="disk-progress-fill"
-            :style="{ width: `${systemStatus.disk.usedPercent}%` }"
+            :style="{ width: `${displayPercent}%` }"
           ></div>
         </div>
       </div>

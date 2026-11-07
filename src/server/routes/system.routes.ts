@@ -16,7 +16,7 @@ export function createSystemRouter(
   // GET /system/status
   router.get('/system/status', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const diskStats = await diskMonitor.getDiskStats(store.getDownloadPath());
+      const diskStats = await diskMonitor.getDiskStats(store.getDownloadPath(), store);
       const nextCleanAt = scheduler.getNextCleanAtISO();
 
       // Aggregate global download speed across all engines

@@ -71,4 +71,36 @@ describe('DiskMonitor Service', () => {
     expect(resRejected.allowed).toBe(false);
     expect(resRejected.reason).toBe('PEERFLIX_QUOTA_EXCEEDED');
   });
+
+  it('should enforce quota reservation based on total allocated torrent sizes (as if completed)', async () => {
+    const mockStore: any = {
+      getTotalAllocatedBytes: vi.fn().mockReturnValue(150 * 1024 * 1024 * 1024), // 150 GB total allocated
+      getTotalDownloadedBytes: vi.fn().mockReturnValue(10 * 1024 * 1024 * 1024) // only 10 GB downloaded so far!
+    };
+
+    const monitor = new DiskMonitor('/mock/path', 2048, 200, mockStore);
+
+    vi.spyOn(monitor, 'getDiskStats').mockResolvedValue({
+      totalBytes: 1000 * 1024 * 1024 * 1024,
+      freeBytes: 500 * 1024 * 1024 * 1024,
+      usedBytes: 380 * 1024 * 1024 * 1024,
+      usedPercent: 38,
+      peerflixUsedBytes: 150 * 1024 * 1024 * 1024,
+      peerflixDownloadedBytes: 10 * 1024 * 1024 * 1024,
+      maxQuotaBytes: 200 * 1024 * 1024 * 1024,
+      quotaPercent: 75
+    });
+
+    // Torrent C requires 60 GB: 150 GB allocated + 60 GB = 210 GB > 200 GB quota
+    // Even though actual downloaded is only 10 GB, quota reservation rejects it!
+    const sixtyGb = 60 * 1024 * 1024 * 1024;
+    const resRejected = await monitor.canFitTorrent(sixtyGb, undefined, 0, { store: mockStore });
+    expect(resRejected.allowed).toBe(false);
+    expect(resRejected.reason).toBe('PEERFLIX_QUOTA_EXCEEDED');
+
+    // Torrent D requires 40 GB: 150 GB allocated + 40 GB = 190 GB <= 200 GB quota -> Allowed
+    const fortyGb = 40 * 1024 * 1024 * 1024;
+    const resAllowed = await monitor.canFitTorrent(fortyGb, undefined, 0, { store: mockStore });
+    expect(resAllowed.allowed).toBe(true);
+  });
 });

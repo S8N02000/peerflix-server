@@ -54,6 +54,7 @@ export interface ServerDiskStatsDTO {
   usedBytes: number;
   usedPercent: number;
   peerflixUsedBytes?: number;
+  peerflixDownloadedBytes?: number;
   maxQuotaBytes?: number;
   quotaPercent?: number;
 }

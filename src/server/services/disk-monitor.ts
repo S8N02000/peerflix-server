@@ -15,11 +15,18 @@ export class DiskMonitor {
   private downloadPath: string;
   private minFreeMb: number;
   private maxQuotaGb?: number;
+  private store?: TorrentStore;
   private cachedPeerflixSize = 0;
   private lastSizeCheckTime = 0;
 
-  constructor(downloadPath = '/tmp/torrent-stream', minFreeMb?: number, maxQuotaGb?: number) {
+  constructor(
+    downloadPath = '/tmp/torrent-stream',
+    minFreeMb?: number,
+    maxQuotaGb?: number,
+    store?: TorrentStore
+  ) {
     this.downloadPath = downloadPath;
+    this.store = store;
     this.minFreeMb =
       typeof minFreeMb === 'number'
         ? minFreeMb
@@ -32,6 +39,14 @@ export class DiskMonitor {
         : process.env.MAX_DISK_QUOTA_GB
         ? parseFloat(process.env.MAX_DISK_QUOTA_GB)
         : undefined;
+  }
+
+  public setStore(store: TorrentStore): void {
+    this.store = store;
+  }
+
+  public getStore(): TorrentStore | undefined {
+    return this.store;
   }
 
   /**
@@ -80,7 +95,12 @@ export class DiskMonitor {
     }
   }
 
-  public async getDiskStats(targetPath = this.downloadPath): Promise<ServerDiskStatsDTO> {
+  public async getDiskStats(
+    targetPath = this.downloadPath,
+    customStore?: TorrentStore
+  ): Promise<ServerDiskStatsDTO> {
+    const store = customStore || this.store;
+
     try {
       await fs.mkdir(targetPath, { recursive: true });
       const stats = await fs.statfs(targetPath);
@@ -90,8 +110,18 @@ export class DiskMonitor {
       const usedBytes = Math.max(0, totalBytes - (stats.bfree * bsize));
       const usedPercent = totalBytes > 0 ? Math.round(((totalBytes - freeBytes) / totalBytes) * 100) : 0;
 
-      // Calculate size used exclusively by Peerflix downloads
-      const peerflixUsedBytes = await this.getPeerflixUsedBytes(targetPath);
+      // Calculate size used by Peerflix: if store is attached, use instant memory calculation
+      // Quota treats all registered torrents as if they were fully downloaded (reservation)
+      let peerflixUsedBytes: number;
+      let peerflixDownloadedBytes: number | undefined;
+
+      if (store) {
+        peerflixUsedBytes = store.getTotalAllocatedBytes();
+        peerflixDownloadedBytes = store.getTotalDownloadedBytes();
+      } else {
+        peerflixUsedBytes = await this.getPeerflixUsedBytes(targetPath);
+      }
+
       const maxQuotaBytes =
         typeof this.maxQuotaGb === 'number' && this.maxQuotaGb > 0
           ? this.maxQuotaGb * 1024 * 1024 * 1024
@@ -108,12 +138,14 @@ export class DiskMonitor {
         usedBytes,
         usedPercent,
         peerflixUsedBytes,
+        peerflixDownloadedBytes,
         maxQuotaBytes,
         quotaPercent
       };
     } catch (err: any) {
       console.warn(`[DiskMonitor] statfs failed for ${targetPath}:`, err.message);
-      const peerflixUsedBytes = await this.getPeerflixUsedBytes(targetPath);
+      const peerflixUsedBytes = store ? store.getTotalAllocatedBytes() : await this.getPeerflixUsedBytes(targetPath);
+      const peerflixDownloadedBytes = store ? store.getTotalDownloadedBytes() : undefined;
       const maxQuotaBytes =
         typeof this.maxQuotaGb === 'number' && this.maxQuotaGb > 0
           ? this.maxQuotaGb * 1024 * 1024 * 1024
@@ -125,6 +157,7 @@ export class DiskMonitor {
         usedBytes: 50 * 1024 * 1024 * 1024,
         usedPercent: 50,
         peerflixUsedBytes,
+        peerflixDownloadedBytes,
         maxQuotaBytes,
         quotaPercent: maxQuotaBytes ? Math.min(100, Math.round((peerflixUsedBytes / maxQuotaBytes) * 100)) : undefined
       };
@@ -134,13 +167,20 @@ export class DiskMonitor {
   public async canFitTorrent(
     requiredBytes: number,
     targetPath = this.downloadPath,
-    activeTorrentsPendingBytes = 0
+    activeTorrentsPendingBytes = 0,
+    options: { excludeInfoHash?: string; store?: TorrentStore } = {}
   ): Promise<CanFitResult> {
-    const diskStats = await this.getDiskStats(targetPath);
+    const store = options.store || this.store;
+    const diskStats = await this.getDiskStats(targetPath, store);
     const safetyMarginBytes = this.minFreeMb * 1024 * 1024;
-    const effectiveAvailable = diskStats.freeBytes - activeTorrentsPendingBytes;
+
+    // Remaining unwritten bytes to download across existing torrents
+    const pendingUnwrittenBytes = store
+      ? Math.max(0, store.getTotalAllocatedBytes(options.excludeInfoHash) - store.getTotalDownloadedBytes())
+      : activeTorrentsPendingBytes;
 
     // 1. Check physical disk available space on the host partition
+    const effectiveAvailable = diskStats.freeBytes - pendingUnwrittenBytes;
     let allowed = effectiveAvailable - requiredBytes >= safetyMarginBytes;
     let reason: 'PHYSICAL_DISK_FULL' | 'PEERFLIX_QUOTA_EXCEEDED' | undefined;
 
@@ -148,13 +188,16 @@ export class DiskMonitor {
       reason = 'PHYSICAL_DISK_FULL';
     }
 
-    // 2. Check maximum quota allocated exclusively to Peerflix (not the whole host disk!)
+    // 2. Check maximum quota allocated exclusively to Peerflix (as if ALL torrents are completed)
     if (allowed && typeof this.maxQuotaGb === 'number' && this.maxQuotaGb > 0) {
       const maxQuotaBytes = this.maxQuotaGb * 1024 * 1024 * 1024;
-      const currentPeerflixUsed = diskStats.peerflixUsedBytes ?? 0;
-      const projectedPeerflixUsed = currentPeerflixUsed + activeTorrentsPendingBytes + requiredBytes;
+      const currentPeerflixAllocated = store
+        ? store.getTotalAllocatedBytes(options.excludeInfoHash)
+        : (diskStats.peerflixUsedBytes ?? 0);
 
-      if (projectedPeerflixUsed > maxQuotaBytes) {
+      const projectedPeerflixAllocated = currentPeerflixAllocated + requiredBytes;
+
+      if (projectedPeerflixAllocated > maxQuotaBytes) {
         allowed = false;
         reason = 'PEERFLIX_QUOTA_EXCEEDED';
       }
@@ -170,14 +213,25 @@ export class DiskMonitor {
   }
 
   public attachToStore(store: TorrentStore, io?: { emit: (event: string, data: any) => void }): void {
+    this.store = store;
+
     store.on('torrent', (infoHash: string, engine: any) => {
+      let spaceChecked = false;
+
       const checkSpace = async () => {
-        const torrentLength = engine.torrent?.length;
+        if (spaceChecked) return;
+        const torrentLength = store.getTorrentAllocatedBytes(infoHash) || engine.torrent?.length;
         if (!torrentLength || torrentLength <= 0) {
           return;
         }
 
-        const fit = await this.canFitTorrent(torrentLength, store.getDownloadPath());
+        spaceChecked = true;
+
+        const fit = await this.canFitTorrent(torrentLength, store.getDownloadPath(), 0, {
+          excludeInfoHash: infoHash,
+          store
+        });
+
         if (!fit.allowed) {
           const quotaLabel = this.maxQuotaGb ? `${this.maxQuotaGb} Go` : '';
           const message =
@@ -198,8 +252,12 @@ export class DiskMonitor {
         }
       };
 
-      engine.once('verifying', checkSpace);
-      engine.once('ready', checkSpace);
+      if (engine.ready && engine.torrent?.length) {
+        checkSpace();
+      } else {
+        engine.once('verifying', checkSpace);
+        engine.once('ready', checkSpace);
+      }
     });
   }
 }
