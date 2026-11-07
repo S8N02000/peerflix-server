@@ -139,6 +139,35 @@ export interface C411SearchResultDTO {
   codec?: string;
   year?: string;
   team?: string;
+  torrentId?: string;
+  commentsCount?: number;
+  description?: string;
+}
+
+export interface C411CommentDTO {
+  id?: string;
+  author: string;
+  avatarUrl?: string;
+  date: string;
+  content: string;
+}
+
+export interface C411TorrentDetailsDTO {
+  id: string;
+  torrentId?: string;
+  title: string;
+  cleanTitle?: string;
+  categoryName?: string;
+  size: number;
+  pubDate?: string;
+  seeders: number;
+  leechers: number;
+  isFreeleech: boolean;
+  posterUrl?: string;
+  descriptionHtml: string;
+  nfo?: string;
+  comments: C411CommentDTO[];
+  c411PageUrl?: string;
 }
 
 export interface C411SavedFilter {

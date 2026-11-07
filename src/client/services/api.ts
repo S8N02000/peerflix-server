@@ -123,3 +123,12 @@ export async function addC411Torrent(id: string): Promise<{ infoHash: string }> 
   return res.json();
 }
 
+export async function fetchC411Details(id: string): Promise<import('../../shared/types.js').C411TorrentDetailsDTO> {
+  const res = await authFetch(`/c411/details/${id}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Failed to fetch torrent details' }));
+    throw new Error(err.message || `Failed to fetch details: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+

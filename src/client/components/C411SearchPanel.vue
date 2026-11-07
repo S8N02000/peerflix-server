@@ -4,6 +4,7 @@ import type { C411SearchResultDTO, C411ProfileDTO, C411SavedFilter } from '../..
 import { searchC411, addC411Torrent } from '../services/api.js';
 import { formatBytes } from '../composables/useTorrents.js';
 import { parseReleaseMetadata } from '../utils/release-parser.js';
+import C411TorrentDetailsModal from './C411TorrentDetailsModal.vue';
 
 const props = defineProps<{
   c411Profile?: C411ProfileDTO | null;
@@ -13,6 +14,19 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'torrent-added', infoHash: string): void;
 }>();
+
+// Torrent Details Modal state
+const selectedItemForModal = ref<C411SearchResultDTO | null>(null);
+const isDetailsModalOpen = ref(false);
+
+const openDetailsModal = (item: C411SearchResultDTO) => {
+  selectedItemForModal.value = item;
+  isDetailsModalOpen.value = true;
+};
+
+const closeDetailsModal = () => {
+  isDetailsModalOpen.value = false;
+};
 
 // Main Search & Server Query State
 const searchQuery = ref('');
@@ -200,6 +214,13 @@ const handleAdd = async (item: C411SearchResultDTO) => {
     alert(err.message || "Erreur lors de l'ajout du torrent");
   } finally {
     addingId.value = null;
+  }
+};
+
+const handleAddFromModal = async (id: string) => {
+  const item = rawResults.value.find((r) => r.id === id) || selectedItemForModal.value;
+  if (item) {
+    await handleAdd(item);
   }
 };
 
@@ -814,7 +835,7 @@ onMounted(() => {
         class="c411-result-row"
       >
         <!-- Poster / Cover Image on the Left -->
-        <div class="result-poster-box">
+        <div class="result-poster-box clickable" title="Voir la fiche détaillée C411 (description & commentaires)" @click="openDetailsModal(item)">
           <img
             v-if="item.posterUrl && !brokenImages.has(item.id)"
             :src="item.posterUrl"
@@ -834,7 +855,9 @@ onMounted(() => {
           <!-- Row 1: Category badge + Clean Title + Season/Episode + Year + Freeleech -->
           <div class="row-title">
             <span v-if="item.categoryName" class="badge-cat">{{ item.categoryName }}</span>
-            <span class="item-clean-title">{{ getMeta(item).cleanTitle }}</span>
+            <span class="item-clean-title clickable" title="Voir la fiche détaillée C411 (description & commentaires)" @click="openDetailsModal(item)">
+              {{ getMeta(item).cleanTitle }}
+            </span>
             <span v-if="getMeta(item).seasonEpisodeLabel" class="badge-season-episode">
               {{ getMeta(item).seasonEpisodeLabel }}
             </span>
@@ -845,7 +868,7 @@ onMounted(() => {
           </div>
 
           <!-- Row 2: Raw Release Name in Monospace Green (#10b981) -->
-          <div class="row-raw-release" :title="item.title">
+          <div class="row-raw-release clickable" :title="item.title + ' (Cliquer pour voir la fiche)'" @click="openDetailsModal(item)">
             {{ item.title }}
           </div>
 
@@ -894,6 +917,14 @@ onMounted(() => {
           <div class="action-btn-box">
             <button
               type="button"
+              class="btn-view-details"
+              title="Voir la description, les images et les commentaires sur C411"
+              @click="openDetailsModal(item)"
+            >
+              📄 Fiche
+            </button>
+            <button
+              type="button"
               class="btn-add-torrent"
               :class="{
                 added: item.alreadyAdded || addedIds.has(item.id),
@@ -920,6 +951,16 @@ onMounted(() => {
         Réinitialiser les filtres
       </button>
     </div>
+
+    <!-- C411 Torrent Details Modal (Rich description, images, guide & user comments) -->
+    <C411TorrentDetailsModal
+      :is-open="isDetailsModalOpen"
+      :item="selectedItemForModal"
+      :is-adding="Boolean(selectedItemForModal && addingId === selectedItemForModal.id)"
+      :is-added="Boolean(selectedItemForModal && (addedIds.has(selectedItemForModal.id) || (selectedItemForModal.infoHash && activeHashes?.has(selectedItemForModal.infoHash.toLowerCase()))))"
+      @close="closeDetailsModal"
+      @add="handleAddFromModal"
+    />
   </div>
 </template>
 
@@ -1642,6 +1683,50 @@ onMounted(() => {
 .btn-add-torrent.loading {
   opacity: 0.7;
   cursor: wait;
+}
+
+.action-btn-box {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.btn-view-details {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-view-details:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  box-shadow: 0 2px 8px rgba(56, 189, 248, 0.2);
+}
+
+.clickable {
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.clickable:hover {
+  opacity: 0.85;
+}
+
+.item-clean-title.clickable:hover {
+  color: #38bdf8;
+  text-decoration: underline;
+}
+
+.row-raw-release.clickable:hover {
+  color: #34d399;
 }
 
 /* States */

@@ -171,4 +171,21 @@ describe('C411SearchPanel.vue Component', () => {
     expect(wrapper.text()).toContain('Dexter');
     expect(wrapper.text()).not.toContain('Inception');
   });
+
+  it('opens C411TorrentDetailsModal when clicking on the Fiche button', async () => {
+    const wrapper = mount(C411SearchPanel, {
+      props: {
+        c411Profile: { enabled: true },
+      },
+    });
+    await new Promise((r) => setTimeout(r, 60));
+
+    const ficheBtns = wrapper.findAll('.btn-view-details');
+    expect(ficheBtns.length).toBeGreaterThanOrEqual(1);
+
+    await ficheBtns[0].trigger('click');
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(wrapper.find('.c411-modal-overlay').exists()).toBe(true);
+  });
 });

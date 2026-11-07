@@ -36,6 +36,26 @@ export function createC411Router(store: TorrentStore, client = new C411Client())
     }
   });
 
+  // GET /c411/details/:id
+  const handleDetails = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      if (!id || typeof id !== 'string') {
+        res.status(400).json({ error: 'BadRequest', message: 'Missing torrent id parameter' });
+        return;
+      }
+
+      const details = await client.getTorrentDetails(id);
+      res.json(details);
+    } catch (err: any) {
+      const status = err.message?.includes('introuvable') ? 404 : 500;
+      res.status(status).json({ error: 'C411DetailsFailed', message: err.message });
+    }
+  };
+
+  router.get('/c411/details/:id', handleDetails);
+  router.get('/api/c411/details/:id', handleDetails);
+
   // POST /c411/add
   router.post('/c411/add', async (req: Request, res: Response, next: NextFunction) => {
     try {

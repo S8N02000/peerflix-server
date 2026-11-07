@@ -11,8 +11,10 @@ describe('C411 Torznab & Profile Service', () => {
     <item>
       <title><![CDATA[American.Gods.S03.MULTI.VFF.1080p.WEB.EAC3.5.1.H264-FRATERNiTY]]></title>
       <link>https://c411.org/download/12345?apikey=SECRET_API_KEY_12345</link>
+      <comments>https://c411.org/torrents/12345#comments</comments>
       <size>39728447488</size>
       <pubDate>Mon, 03 Mar 2025 14:00:00 +0000</pubDate>
+      <description><![CDATA[<p>[center][b]American Gods Saison 3[/b][/center]</p><p>Synopsis de la série...</p>]]></description>
       <enclosure url="https://c411.org/download/12345?apikey=SECRET_API_KEY_12345" length="39728447488" type="application/x-bittorrent" />
       <torznab:attr name="category" value="5000" />
       <torznab:attr name="seeders" value="37" />
@@ -46,12 +48,49 @@ describe('C411 Torznab & Profile Service', () => {
     expect(r.season).toBe(3);
     expect(r.year).toBe('2021');
     expect(r.resolution).toBe('1080p');
+    expect(r.torrentId).toBe('12345');
 
     // Security check: ensure API key is never in result ID or any field
     const jsonStr = JSON.stringify(r);
     expect(jsonStr).not.toContain('SECRET_API_KEY_12345');
     expect(jsonStr).not.toContain('download/12345');
     expect(r.id.length).toBe(16);
+  });
+
+  it('should return rich details, description and comments with getTorrentDetails', async () => {
+    const client = new C411Client('KEY', 'https://c411.org');
+    const results = client.parseTorznabXml(sampleXml);
+    const item = results[0];
+
+    const mockHtml = `
+      <div class="torrent-description">
+        <center><h2>Autodesk Civil 3D 2027</h2></center>
+        <img src="/images/civil3d_cover.png" />
+        <pre class="nfo">INSTALLATION: 1. Installer le setup. 2. Copier le crack.</pre>
+      </div>
+      <div class="comment">
+        <a class="username">Alexandre92</a>
+        <time>il y a 2 jours</time>
+        <div class="comment-body">Merci beaucoup pour le partage, marche impec sur Win 11 !</div>
+      </div>
+    `;
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'text/html' },
+      text: vi.fn().mockResolvedValue(mockHtml)
+    } as any);
+
+    const details = await client.getTorrentDetails(item.id);
+
+    expect(details.id).toBe(item.id);
+    expect(details.title).toBe(item.title);
+    expect(details.descriptionHtml).toContain('Autodesk Civil 3D 2027');
+    expect(details.descriptionHtml).toContain('src="https://c411.org/images/civil3d_cover.png"');
+    expect(details.nfo).toContain('INSTALLATION: 1. Installer le setup.');
+    expect(details.comments.length).toBe(1);
+    expect(details.comments[0].author).toBe('Alexandre92');
+    expect(details.comments[0].content).toContain('marche impec sur Win 11 !');
   });
 
   it('should handle /c411/status route and return profile info', async () => {
@@ -67,7 +106,8 @@ describe('C411 Torznab & Profile Service', () => {
         downloadAllowed: true
       }),
       searchTorznab: vi.fn().mockResolvedValue([]),
-      fetchTorrentBufferById: vi.fn()
+      fetchTorrentBufferById: vi.fn(),
+      getTorrentDetails: vi.fn()
     };
 
     const mockStore: any = {
@@ -83,6 +123,37 @@ describe('C411 Torznab & Profile Service', () => {
     const res = await request(app).get('/c411/status');
     expect(res.status).toBe(200);
     expect(res.body.enabled).toBe(true);
+  });
+
+  it('should handle GET /c411/details/:id and return details DTO', async () => {
+    const mockDetails = {
+      id: 'test_id_999',
+      title: 'Test Release',
+      size: 1000000,
+      descriptionHtml: '<p>Super description</p>',
+      comments: [{ author: 'User1', content: 'Top!' }]
+    };
+
+    const mockClient: any = {
+      isEnabled: () => true,
+      getTorrentDetails: vi.fn().mockResolvedValue(mockDetails)
+    };
+
+    const mockStore: any = {
+      get: vi.fn().mockReturnValue(null),
+      getMetadata: vi.fn().mockReturnValue(undefined),
+      getDownloadPath: vi.fn().mockReturnValue('/tmp'),
+      list: vi.fn().mockReturnValue([]),
+      on: vi.fn()
+    };
+
+    const app = createApp({ store: mockStore, c411Client: mockClient, enableLogging: false });
+
+    const res = await request(app).get('/c411/details/test_id_999');
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe('test_id_999');
+    expect(res.body.descriptionHtml).toBe('<p>Super description</p>');
+    expect(res.body.comments[0].author).toBe('User1');
   });
 
   it('should handle /c411/add by downloading torrent buffer and calling store.add', async () => {
