@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { TorrentStore } from '../../src/server/services/store.js';
+import * as engineModule from '../../src/server/services/engine.js';
 
 describe('Torrent Store Service', () => {
   let tempConfigDir: string;
@@ -99,5 +100,27 @@ describe('Torrent Store Service', () => {
     await store.init();
     await expect(store.remove('non_existent_hash_12345')).resolves.toBeUndefined();
     await store.destroyAll();
+  });
+
+  it('should isolate download directory by infoHash when calling createTorrentEngine', async () => {
+    const createTorrentEngineSpy = vi.spyOn(engineModule, 'createTorrentEngine');
+
+    const store = new TorrentStore({
+      configPath: tempConfigDir,
+      downloadPath: tempDownloadDir
+    });
+
+    await store.init();
+    const infoHash = await store.add(sampleMagnet);
+
+    expect(createTorrentEngineSpy).toHaveBeenCalled();
+    const lastCall = createTorrentEngineSpy.mock.calls[createTorrentEngineSpy.mock.calls.length - 1];
+    const opts = lastCall[1];
+
+    expect(opts?.path).toBe(path.join(tempDownloadDir, infoHash));
+    expect(opts?.tmp).toBe(tempDownloadDir);
+
+    await store.destroyAll();
+    createTorrentEngineSpy.mockRestore();
   });
 });

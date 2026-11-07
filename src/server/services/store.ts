@@ -127,7 +127,8 @@ export class TorrentStore extends EventEmitter {
       }
 
       const engine = await createTorrentEngine(source, {
-        path: this.downloadPath,
+        path: path.join(this.downloadPath, meta.infoHash),
+        tmp: this.downloadPath,
         ...this.engineOptions
       });
 
@@ -164,7 +165,8 @@ export class TorrentStore extends EventEmitter {
     }
 
     const engine = await createTorrentEngine(source, {
-      path: this.downloadPath,
+      path: path.join(this.downloadPath, infoHash),
+      tmp: this.downloadPath,
       ...this.engineOptions
     });
 
