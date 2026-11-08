@@ -1,5 +1,5 @@
 import type { TorrentDTO, SystemStatusDTO } from '../../shared/types.js';
-import { getCurrentUser, getIsAdmin, getSavedAdminToken } from '../utils/auth-url.js';
+import { getCurrentUser, getIsAdmin, getSavedAdminToken, getSavedAuthCredentials } from '../utils/auth-url.js';
 
 function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers || {});
@@ -10,6 +10,13 @@ function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Respon
     if (token) {
       headers.set('X-Peerflix-Admin-Token', token);
     }
+  }
+
+  const creds = getSavedAuthCredentials();
+  if (creds && creds.includes(':') && !headers.has('Authorization')) {
+    try {
+      headers.set('Authorization', 'Basic ' + btoa(creds));
+    } catch {}
   }
 
   return fetch(input, {

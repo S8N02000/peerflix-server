@@ -60,4 +60,41 @@ describe('TvGuideModal.vue', () => {
     await wrapper.find('.btn-close').trigger('click');
     expect(wrapper.emitted('close')).toBeTruthy();
   });
+
+  it('includes login and password in M3U URL when authenticatedOrigin is provided', () => {
+    const authStatus = {
+      ...systemStatus,
+      authenticatedOrigin: 'https://monuser:monpass123@peerflix.domain.com'
+    };
+
+    const wrapper = mount(TvGuideModal, {
+      props: {
+        isOpen: true,
+        systemStatus: authStatus as any,
+        currentUser: 'PC-Linux-Aigle'
+      }
+    });
+
+    const m3uInput = wrapper.find('.url-input');
+    expect(m3uInput.exists()).toBe(true);
+    const value = (m3uInput.element as HTMLInputElement).value;
+    expect(value).toBe('https://monuser:monpass123@peerflix.domain.com/playlist.m3u?user=PC-Linux-Aigle');
+  });
+
+  it('preserves login and password in M3U URL even if systemStatus authenticatedOrigin is temporarily omitted', () => {
+    // When previous authenticatedOrigin was stored/cached, new render without authenticatedOrigin still uses it
+    const wrapper = mount(TvGuideModal, {
+      props: {
+        isOpen: true,
+        systemStatus: { ...systemStatus, authenticatedOrigin: undefined } as any,
+        currentUser: 'PC-Linux-Aigle'
+      }
+    });
+
+    const m3uInput = wrapper.find('.url-input');
+    expect(m3uInput.exists()).toBe(true);
+    const value = (m3uInput.element as HTMLInputElement).value;
+    expect(value).toContain('monuser:monpass123@');
+    expect(value).toContain('/playlist.m3u?user=PC-Linux-Aigle');
+  });
 });

@@ -72,7 +72,26 @@ describe('MediaPlayerModal & QrCodeModal Components', () => {
 
       const vlcBtn = wrapper.find('.btn-action-icon.btn-vlc');
       expect(vlcBtn.exists()).toBe(true);
-      expect(vlcBtn.attributes('href')).toBe(`/torrents/${mockTorrent.infoHash}/files/${mockFile.index}/vlc.m3u`);
+      expect(vlcBtn.attributes('href')).toContain(`/torrents/${mockTorrent.infoHash}/files/${mockFile.index}/vlc.m3u`);
+    });
+
+    it('renders VLC M3U download link with authentication credentials when available', () => {
+      const wrapper = mount(MediaPlayerModal, {
+        props: {
+          file: mockFile,
+          torrent: mockTorrent,
+          systemStatus: {
+            disk: { totalBytes: 100, usedBytes: 50, freeBytes: 50, usedPercent: 50 },
+            nextCleanAt: 'demain',
+            totalDownSpeed: 0,
+            authenticatedOrigin: 'https://vlcuser:vlcpass@myhost.net'
+          } as any
+        },
+      });
+
+      const vlcBtn = wrapper.find('.btn-action-icon.btn-vlc');
+      expect(vlcBtn.exists()).toBe(true);
+      expect(vlcBtn.attributes('href')).toBe(`https://vlcuser:vlcpass@myhost.net/torrents/${mockTorrent.infoHash}/files/${mockFile.index}/vlc.m3u`);
     });
 
     it('renders audio track selector when probe returns multiple or DTS audio tracks', async () => {

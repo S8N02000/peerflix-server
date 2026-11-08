@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import type { SystemStatusDTO, C411ProfileDTO } from '../../shared/types.js';
 import { formatBytes } from '../composables/useTorrents.js';
-import { getExternalBaseUrl } from '../utils/auth-url.js';
+import { getExternalBaseUrl, getSavedAuthCredentials } from '../utils/auth-url.js';
 
 const props = defineProps<{
   systemStatus: SystemStatusDTO | null;
@@ -128,19 +128,30 @@ const formattedStorage = computed(() => {
 });
 
 const playlistDownloadUrl = computed(() => {
+  const baseUrl = getExternalBaseUrl(props.systemStatus);
   const u = props.currentUser || 'Moi';
+  const creds = getSavedAuthCredentials();
+  let url = `${baseUrl}/playlist.m3u`;
   const params: string[] = [];
   if (u && u !== 'Moi') params.push(`user=${encodeURIComponent(u)}`);
-  return params.length > 0 ? `/playlist.m3u?${params.join('&')}` : '/playlist.m3u';
+  if (!baseUrl.includes('@') && creds) {
+    params.push(`auth=${encodeURIComponent(creds)}`);
+  }
+  if (params.length > 0) url += `?${params.join('&')}`;
+  return url;
 });
 
 const copyPlaylistUrl = async () => {
   if (typeof window === 'undefined') return;
   const baseUrl = getExternalBaseUrl(props.systemStatus);
   const u = props.currentUser || 'Moi';
+  const creds = getSavedAuthCredentials();
   let fullUrl = `${baseUrl}/playlist.m3u`;
   const params: string[] = [];
   if (u && u !== 'Moi') params.push(`user=${encodeURIComponent(u)}`);
+  if (!baseUrl.includes('@') && creds) {
+    params.push(`auth=${encodeURIComponent(creds)}`);
+  }
   if (params.length > 0) fullUrl += `?${params.join('&')}`;
 
   try {

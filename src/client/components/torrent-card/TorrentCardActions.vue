@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import type { TorrentDTO, TorrentFileDTO, SystemStatusDTO } from '../../../shared/types.js';
-import { getExternalBaseUrl } from '../../utils/auth-url.js';
+import { getExternalBaseUrl, getSavedAuthCredentials } from '../../utils/auth-url.js';
 
 const props = defineProps<{
   torrent: TorrentDTO;
@@ -79,9 +79,17 @@ const copiedLinks = ref(false);
 
 const copyAllDownloadLinks = async () => {
   const baseUrl = getExternalBaseUrl(props.systemStatus);
+  const creds = getSavedAuthCredentials();
   const urls = props.torrent.files
     .filter((f) => f.selected !== false)
-    .map((f) => `${baseUrl}${f.downloadUrl}`)
+    .map((f) => {
+      let link = `${baseUrl}${f.downloadUrl}`;
+      if (!baseUrl.includes('@') && creds) {
+        const sep = link.includes('?') ? '&' : '?';
+        link += `${sep}auth=${encodeURIComponent(creds)}`;
+      }
+      return link;
+    })
     .join('\n');
 
   try {

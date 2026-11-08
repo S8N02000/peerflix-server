@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import type { TorrentFileDTO, TorrentDTO, MediaProbeDTO, SystemStatusDTO } from '../../shared/types.js';
 import PlayerErrorOverlay from './player/PlayerErrorOverlay.vue';
 import PlayerHotkeys from './player/PlayerHotkeys.vue';
+import { getExternalBaseUrl, getSavedAuthCredentials } from '../utils/auth-url.js';
 
 const props = defineProps<{
   file: TorrentFileDTO;
@@ -203,7 +204,13 @@ const onAudioTrackSelect = () => {
 };
 
 const vlcM3uUrl = computed(() => {
-  return `/torrents/${props.torrent.infoHash}/files/${currentFile.value.index}/vlc.m3u`;
+  const baseUrl = getExternalBaseUrl(props.systemStatus);
+  const creds = getSavedAuthCredentials();
+  let url = `${baseUrl}/torrents/${props.torrent.infoHash}/files/${currentFile.value.index}/vlc.m3u`;
+  if (!baseUrl.includes('@') && creds) {
+    url += `?auth=${encodeURIComponent(creds)}`;
+  }
+  return url;
 });
 
 const formatDuration = (seconds?: number): string => {

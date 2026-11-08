@@ -6,7 +6,8 @@ import {
   getCurrentUser,
   saveCurrentUser,
   getIsAdmin,
-  saveIsAdmin
+  saveIsAdmin,
+  getExternalBaseUrl
 } from '../utils/auth-url.js';
 
 export function formatBytes(bytes: number, decimals = 1): string {
@@ -286,7 +287,10 @@ export function useTorrents() {
     });
 
     socket.on('systemStats', (status: SystemStatusDTO) => {
-      systemStatus.value = status;
+      systemStatus.value = {
+        ...status,
+        authenticatedOrigin: systemStatus.value?.authenticatedOrigin || status.authenticatedOrigin
+      };
       updateDocumentTitle();
     });
 
@@ -329,7 +333,13 @@ export function useTorrents() {
       ]);
       torrents.value = torrentList;
       if (sysStatus) {
-        systemStatus.value = sysStatus;
+        systemStatus.value = {
+          ...sysStatus,
+          authenticatedOrigin: sysStatus.authenticatedOrigin || systemStatus.value?.authenticatedOrigin
+        };
+        if (systemStatus.value.authenticatedOrigin) {
+          getExternalBaseUrl(systemStatus.value);
+        }
       }
     } catch (err: any) {
       errorMessage.value = err.message || 'Impossible de contacter le serveur';

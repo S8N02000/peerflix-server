@@ -65,16 +65,19 @@ export function getAuthenticatedBaseUrl(req: Request): string {
   }
 
   if (!credentials) {
-    const rawEnv = process.env.PUBLIC_AUTH_CREDENTIALS || process.env.BASIC_AUTH;
+    const cleanVal = (val?: string) => (val ? val.trim().replace(/^["']|["']$/g, '') : '');
+    const rawEnv = cleanVal(process.env.PUBLIC_AUTH_CREDENTIALS || process.env.BASIC_AUTH);
     if (rawEnv && rawEnv.includes(':')) {
       const colonIdx = rawEnv.indexOf(':');
       const user = rawEnv.slice(0, colonIdx).trim();
       const pass = rawEnv.slice(colonIdx + 1).trim();
       credentials = `${encodePart(user)}:${encodePart(pass)}`;
     } else if (process.env.HTTP_AUTH_USER && process.env.HTTP_AUTH_PASSWORD) {
-      const user = process.env.HTTP_AUTH_USER.trim();
-      const pass = process.env.HTTP_AUTH_PASSWORD.trim();
-      credentials = `${encodePart(user)}:${encodePart(pass)}`;
+      const user = cleanVal(process.env.HTTP_AUTH_USER);
+      const pass = cleanVal(process.env.HTTP_AUTH_PASSWORD);
+      if (user && pass) {
+        credentials = `${encodePart(user)}:${encodePart(pass)}`;
+      }
     }
   }
 

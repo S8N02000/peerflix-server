@@ -2,12 +2,23 @@
 import type { TorrentFileDTO, FileCategory } from '../../shared/types.js';
 import { formatBytes } from '../composables/useTorrents.js';
 import type { TreeNode } from './FileTree.vue';
+import { getExternalBaseUrl, getSavedAuthCredentials } from '../utils/auth-url.js';
 
-defineProps<{
+const props = defineProps<{
   node: TreeNode;
   infoHash: string;
   isCollapsed: (path: string) => boolean;
 }>();
+
+const getVlcUrl = (fileIndex: number) => {
+  const baseUrl = getExternalBaseUrl();
+  const creds = getSavedAuthCredentials();
+  let url = `${baseUrl}/torrents/${props.infoHash}/files/${fileIndex}/vlc.m3u`;
+  if (!baseUrl.includes('@') && creds) {
+    url += `?auth=${encodeURIComponent(creds)}`;
+  }
+  return url;
+};
 
 const emit = defineEmits<{
   (e: 'toggle-folder', path: string): void;
@@ -105,7 +116,7 @@ const onCheckboxChange = (file: TorrentFileDTO, e: Event) => {
             ▶ {{ node.file.category === 'video' ? 'Regarder' : 'Écouter' }}
           </button>
           <a
-            :href="`/torrents/${infoHash}/files/${node.file.index}/vlc.m3u`"
+            :href="getVlcUrl(node.file.index)"
             class="btn-action vlc"
             download
             title="Télécharger la playlist M3U pour lancer instantanément dans VLC (PC / Mac / Mobile)"

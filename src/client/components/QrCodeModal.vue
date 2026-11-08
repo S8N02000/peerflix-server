@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import QRCode from 'qrcode';
 import type { TorrentFileDTO, TorrentDTO, SystemStatusDTO } from '../../shared/types.js';
-import { getExternalBaseUrl } from '../utils/auth-url.js';
+import { getExternalBaseUrl, getSavedAuthCredentials } from '../utils/auth-url.js';
 
 const props = defineProps<{
   file: TorrentFileDTO;
@@ -19,10 +19,16 @@ const copied = ref(false);
 
 const fullStreamUrl = computed(() => {
   const baseUrl = getExternalBaseUrl(props.systemStatus);
-  return `${baseUrl}${props.file.streamUrl}`;
+  const creds = getSavedAuthCredentials();
+  let url = `${baseUrl}${props.file.streamUrl}`;
+  if (!baseUrl.includes('@') && creds) {
+    const sep = url.includes('?') ? '&' : '?';
+    url += `${sep}auth=${encodeURIComponent(creds)}`;
+  }
+  return url;
 });
 
-onMounted(async () => {
+const renderQrCode = async () => {
   if (qrCanvasRef.value) {
     try {
       await QRCode.toCanvas(qrCanvasRef.value, fullStreamUrl.value, {
@@ -37,6 +43,14 @@ onMounted(async () => {
       console.error('Failed to render QR Code', err);
     }
   }
+};
+
+onMounted(() => {
+  renderQrCode();
+});
+
+watch(fullStreamUrl, () => {
+  renderQrCode();
 });
 
 const copyUrl = async () => {

@@ -66,6 +66,24 @@ describe('AppHeader.vue Component', () => {
     expect(wrapper.find('.btn-copy-playlist').exists()).toBe(true);
   });
 
+  it('should include user:pass in playlist download link when authenticatedOrigin is provided', () => {
+    const authStatus: SystemStatusDTO = {
+      ...makeStatus(50),
+      authenticatedOrigin: 'https://testuser:secret123@domain.com'
+    };
+
+    const wrapper = mount(AppHeader, {
+      props: {
+        systemStatus: authStatus,
+        currentUser: 'Alex'
+      }
+    });
+
+    const playlistLink = wrapper.find('.btn-playlist');
+    expect(playlistLink.exists()).toBe(true);
+    expect(playlistLink.attributes('href')).toBe('https://testuser:secret123@domain.com/playlist.m3u?user=Alex');
+  });
+
   it('should emit clean-unpinned when clean button is confirmed', async () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
 

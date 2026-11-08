@@ -1,7 +1,28 @@
 const STORAGE_AUTH_KEY = 'peerflix_auth_credentials';
+const STORAGE_AUTH_ORIGIN_KEY = 'peerflix_auth_origin';
 const STORAGE_USER_KEY = 'peerflix_current_user';
 const STORAGE_ADMIN_KEY = 'peerflix_is_admin';
 const STORAGE_ADMIN_TOKEN_KEY = 'peerflix_admin_token';
+
+let cachedAuthOrigin = '';
+
+// Auto-detect credentials from window.location if available on page load
+if (typeof window !== 'undefined' && window.location) {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const authQuery = params.get('auth');
+    if (authQuery && authQuery.includes(':')) {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(STORAGE_AUTH_KEY, authQuery.trim());
+      }
+    }
+    if (window.location.username && window.location.password) {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(STORAGE_AUTH_KEY, `${window.location.username}:${window.location.password}`);
+      }
+    }
+  } catch {}
+}
 
 const ANIMALS = [
   'Renard', 'Panda', 'Faucon', 'Loup', 'Tigre', 'Koala', 'Aigle', 'Lynx',
@@ -132,15 +153,61 @@ export function saveIsAdmin(isAdmin: boolean, token?: string): void {
   } catch {}
 }
 
+export function getSavedAuthOrigin(): string {
+  if (cachedAuthOrigin && cachedAuthOrigin.includes('@')) return cachedAuthOrigin;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const stored = localStorage.getItem(STORAGE_AUTH_ORIGIN_KEY);
+      if (stored && stored.includes('@')) {
+        cachedAuthOrigin = stored;
+        return stored;
+      }
+    }
+  } catch {}
+  return '';
+}
+
+export function saveAuthOrigin(origin: string): void {
+  if (!origin) return;
+  cachedAuthOrigin = origin;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(STORAGE_AUTH_ORIGIN_KEY, origin);
+    }
+  } catch {}
+}
+
 /**
  * Returns the fully qualified external base URL including authentication credentials
  * if available (e.g. `https://user:pass@domain.com`).
  */
 export function getExternalBaseUrl(systemStatus?: SystemStatusDTO | null): string {
+  // 1. If explicit authenticatedOrigin with credentials is provided, cache and use it
   if (systemStatus?.authenticatedOrigin && systemStatus.authenticatedOrigin.includes('@')) {
+    saveAuthOrigin(systemStatus.authenticatedOrigin);
+    try {
+      const atIdx = systemStatus.authenticatedOrigin.indexOf('@');
+      const schemeIdx = systemStatus.authenticatedOrigin.indexOf('://');
+      if (atIdx !== -1 && schemeIdx !== -1) {
+        const credsPart = systemStatus.authenticatedOrigin.slice(schemeIdx + 3, atIdx);
+        if (credsPart.includes(':')) {
+          const colonIdx = credsPart.indexOf(':');
+          const rawUser = credsPart.slice(0, colonIdx);
+          const rawPass = credsPart.slice(colonIdx + 1);
+          saveAuthCredentials(`${decodeURIComponent(rawUser)}:${decodeURIComponent(rawPass)}`);
+        }
+      }
+    } catch {}
     return systemStatus.authenticatedOrigin;
   }
 
+  // 2. Fall back to cached authenticated origin if available
+  const savedOrigin = getSavedAuthOrigin();
+  if (savedOrigin && savedOrigin.includes('@')) {
+    return savedOrigin;
+  }
+
+  // 3. Fall back to saved credentials (localStorage)
   const savedCreds = getSavedAuthCredentials();
 
   if (typeof window !== 'undefined' && window.location) {
@@ -151,7 +218,9 @@ export function getExternalBaseUrl(systemStatus?: SystemStatusDTO | null): strin
       const colonIdx = savedCreds.indexOf(':');
       const u = encodeURIComponent(savedCreds.slice(0, colonIdx));
       const p = encodeURIComponent(savedCreds.slice(colonIdx + 1));
-      return `${proto}//${u}:${p}@${host}`;
+      const constructed = `${proto}//${u}:${p}@${host}`;
+      saveAuthOrigin(constructed);
+      return constructed;
     }
 
     if (systemStatus?.authenticatedOrigin) {
