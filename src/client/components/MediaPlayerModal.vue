@@ -257,8 +257,16 @@ const onVideoError = () => {
 const fetchProbeData = async () => {
   isProbing.value = true;
   try {
+    const creds = getSavedAuthCredentials();
+    const headers: Record<string, string> = {};
+    if (creds && creds.includes(':')) {
+      try {
+        headers['Authorization'] = 'Basic ' + btoa(creds);
+      } catch {}
+    }
     const res = await fetch(`/torrents/${props.torrent.infoHash}/probe/${currentFile.value.index}`, {
-      credentials: 'include'
+      credentials: 'include',
+      headers
     });
     if (res.ok) {
       probeData.value = await res.json();

@@ -12,13 +12,25 @@ const emit = defineEmits<{
 }>();
 
 const nfoContent = ref<string>('');
+import { getSavedAuthCredentials } from '../utils/auth-url.js';
+
 const isLoading = ref<boolean>(true);
 const errorMessage = ref<string | null>(null);
 const copied = ref<boolean>(false);
 
 onMounted(async () => {
   try {
-    const res = await fetch(`/torrents/${props.torrent.infoHash}/preview/${props.file.index}`);
+    const creds = getSavedAuthCredentials();
+    const headers: Record<string, string> = {};
+    if (creds && creds.includes(':')) {
+      try {
+        headers['Authorization'] = 'Basic ' + btoa(creds);
+      } catch {}
+    }
+    const res = await fetch(`/torrents/${props.torrent.infoHash}/preview/${props.file.index}`, {
+      credentials: 'include',
+      headers
+    });
     if (!res.ok) {
       throw new Error(`Erreur serveur (${res.status})`);
     }

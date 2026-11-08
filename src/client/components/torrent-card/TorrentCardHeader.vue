@@ -71,9 +71,9 @@ const confirmDelete = () => {
             v-if="torrent.addedBy || torrent.addedAt"
             class="badge-author"
             :class="{ 'is-mine': isAddedByMe }"
-            :title="isAddedByMe ? 'Ajouté par vous' : (torrent.addedBy ? 'Ajouté par ' + torrent.addedBy : '')"
+            :title="isAddedByMe ? 'Ajouté par vous' : (isAdmin ? 'Ajouté par ' + torrent.addedBy : 'Ajouté récemment')"
           >
-            👤 {{ isAddedByMe ? 'Moi' : (torrent.addedBy || 'Ajouté') }} • {{ timeAgo }}
+            {{ isAddedByMe ? '👤 Moi' : (isAdmin ? '👤 ' + (torrent.addedBy || 'Inconnu') : '🕒 Récent') }} • {{ timeAgo }}
           </span>
 
           <span

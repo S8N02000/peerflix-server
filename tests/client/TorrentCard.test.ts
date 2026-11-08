@@ -234,4 +234,49 @@ describe('TorrentCard Component', () => {
     const copiedText = writeTextMock.mock.calls[0][0];
     expect(copiedText).toContain(baseTorrent.files[1].downloadUrl);
   });
+
+  it('protects author identity: shows Moi for owner, hides username for normal users, reveals for admin', () => {
+    const torrentWithAuthor: TorrentDTO = {
+      ...baseTorrent,
+      addedBy: 'SecretUser123',
+      addedAt: Date.now() - 60000,
+    };
+
+    // 1. Viewer is author
+    const wrapperAuthor = mount(TorrentCard, {
+      props: {
+        torrent: torrentWithAuthor,
+        currentUser: 'SecretUser123',
+        isAdmin: false,
+      },
+    });
+    const authorBadge1 = wrapperAuthor.find('.badge-author');
+    expect(authorBadge1.exists()).toBe(true);
+    expect(authorBadge1.text()).toContain('👤 Moi');
+
+    // 2. Viewer is someone else (non-admin) -> SecretUser123 MUST NOT be revealed!
+    const wrapperStranger = mount(TorrentCard, {
+      props: {
+        torrent: torrentWithAuthor,
+        currentUser: 'OtherGuy',
+        isAdmin: false,
+      },
+    });
+    const authorBadge2 = wrapperStranger.find('.badge-author');
+    expect(authorBadge2.exists()).toBe(true);
+    expect(authorBadge2.text()).not.toContain('SecretUser123');
+    expect(authorBadge2.text()).toContain('🕒 Récent');
+
+    // 3. Viewer is Admin -> Admin can see author's name
+    const wrapperAdmin = mount(TorrentCard, {
+      props: {
+        torrent: torrentWithAuthor,
+        currentUser: 'OtherGuy',
+        isAdmin: true,
+      },
+    });
+    const authorBadge3 = wrapperAdmin.find('.badge-author');
+    expect(authorBadge3.exists()).toBe(true);
+    expect(authorBadge3.text()).toContain('👤 SecretUser123');
+  });
 });

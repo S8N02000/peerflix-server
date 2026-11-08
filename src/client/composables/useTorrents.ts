@@ -7,7 +7,8 @@ import {
   saveCurrentUser,
   getIsAdmin,
   saveIsAdmin,
-  getExternalBaseUrl
+  getExternalBaseUrl,
+  getSavedAuthCredentials
 } from '../utils/auth-url.js';
 
 export function formatBytes(bytes: number, decimals = 1): string {
@@ -224,15 +225,60 @@ export function useTorrents() {
     }
   };
 
+  let socketErrors = 0;
+  let fallbackPollTimer: any = null;
+
+  const startFallbackPolling = () => {
+    if (fallbackPollTimer) return;
+    fallbackPollTimer = setInterval(async () => {
+      try {
+        await loadTorrents();
+        const status = await api.fetchSystemStatus();
+        systemStatus.value = status;
+      } catch {}
+    }, 4000);
+  };
+
   const initSocket = () => {
     if (typeof window === 'undefined') return;
 
+    const creds = getSavedAuthCredentials();
+    const extraHeaders: Record<string, string> = {};
+    if (creds && creds.includes(':')) {
+      try {
+        extraHeaders['Authorization'] = 'Basic ' + btoa(creds);
+      } catch {}
+    }
+
     socket = ClientSocket({
       withCredentials: true,
+      extraHeaders,
+      auth: creds ? { token: creds } : undefined,
       reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000
+      reconnectionAttempts: 5,
+      reconnectionDelay: 3000,
+      reconnectionDelayMax: 15000,
+      timeout: 10000
+    });
+
+    socket.on('connect_error', () => {
+      socketErrors++;
+      // Si Safari / reverse proxy refuse la connexion (ex: 401 Unauthorized),
+      // déconnecter immédiatement socket pour stopper net la popup en boucle sur iPhone !
+      if (socketErrors >= 2) {
+        try {
+          socket?.disconnect();
+        } catch {}
+        startFallbackPolling();
+      }
+    });
+
+    socket.on('connect', () => {
+      socketErrors = 0;
+      if (fallbackPollTimer) {
+        clearInterval(fallbackPollTimer);
+        fallbackPollTimer = null;
+      }
     });
 
     socket.on('stats', (infoHash: string, stats: any) => {
