@@ -10,7 +10,8 @@
   [![Vue.js](https://img.shields.io/badge/Vue.js-3.x%20Composition%20API-4FC08D?logo=vue.js&logoColor=white)](https://vuejs.org/)
   [![Vite](https://img.shields.io/badge/Vite-6.x-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
   [![Docker](https://img.shields.io/badge/Docker-Multi--stage%20Slim-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
-  [![Tests](https://img.shields.io/badge/Tests-151%2F151%20Passing-brightgreen?logo=vitest&logoColor=white)](https://vitest.dev/)
+  [![Tests](https://img.shields.io/badge/Tests-169%2F169%20Passing-brightgreen?logo=vitest&logoColor=white)](https://vitest.dev/)
+  [![eBook Reader](https://img.shields.io/badge/eBook%20Reader-EPUB%20%7C%20PDF%20%7C%20CBR%20%7C%20CBZ-blueviolet)](https://github.com/S8N02000/peerflix-server)
   [![FFmpeg](https://img.shields.io/badge/FFmpeg-Audio%20Remux%20Zero--GPU-007808?logo=ffmpeg&logoColor=white)](https://ffmpeg.org/)
   [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 </div>
@@ -69,40 +70,71 @@ Cette nouvelle génération introduit une interface réactive par onglets en Vue
 * **Conversion SRT vers WebVTT à la volée** : Injection transparente des sous-titres dans le lecteur HTML5.
 * **Sécurité Anti-OOM** : Protection contre les fuites mémoire avec rejet strict des fichiers sous-titres supérieurs à 10 Mo.
 
-### 🔍 5. Intégration Tracker C411 (Recherche Native & 1-Clic)
+### 🔍 5. Intégration Tracker C411 (Recherche Native, Métadonnées TMDB & 1-Clic)
 * **Architecture 100 % Sécurisée** : La clé API (`C411_API_KEY`) réside exclusivement sur le backend serveur et n'est jamais exposée au navigateur.
 * **Navigation par onglets sans rechargement (0 ms)** : Bascule instantanée entre *Mes Téléchargements* et *Recherche C411*.
-* **Moteur d'analyse de releases** : Extraction automatique du titre propre, saison, épisode, résolution (4K, 1080p, 720p), langues (MULTI, VFF, VOSTFR), sources (WEB-DL, BluRay), HDR (DV, HDR10+), codecs (AV1, HEVC, x264) et teams.
+* **Métadonnées Riches TMDB & Fiche Détaillée** :
+  - Récupération automatique du backdrop HD 1280p, poster, synopsis/overview, notes spectateurs, genres, réalisateurs et casting complet.
+  - Onglet dédié aux **Commentaires des membres C411** avec avatars, dates relatives et compteurs de likes.
+  - Visualiseur de fichier NFO brut intégré.
+* **Catégorisation fine & Pilules d'accès rapide** :
+  - Séparation stricte de l'animation : **`🎌 Animation (film)`** et **`🎌 Animation (Série anime)`**.
+  - Catégories dédiées avec pastilles de couleur : Films, Séries TV, Musique, Ebooks, Jeux PC/Consoles, Logiciels, etc.
 * **Filtres multi-critères & Préréglages** :
-  - Catégorie, Résolution, Langue, Sous-titres, Saison, Source, HDR, Codec, Freeleech.
-  - Sauvegarde de filtres personnalisés en 1 clic.
+  - Année, Résolution (4K / 2160p, 1080p, 720p...), Source (BluRay, WEB-DL, Remux...), Codec (AV1, HEVC, x264), Format audio (Lossless, FLAC, AC3...), HDR (DV, HDR10+), Langues audio et **Langues des sous-titres**.
+  - Sélection des saisons jusqu'à la **saison 100**.
+  - Sauvegarde de filtres personnalisés en 1 clic dans le stockage local.
 * **Widget profil utilisateur** : Affiche votre avatar, ratio, volume upload/download, solde de points Zen et statut Freeleech.
-* **Ajout instantané** : Lance le téléchargement et le streaming sans avoir à manipuler de fichier `.torrent` local.
+* **Ajout instantané & Pied de page Sticky** :
+  - Lancez en un clic en mode `🌐 Lancer (Public)` ou `🔒 Lancer (Privé)`.
+  - Boutons de lancement fixés (sticky) en bas d'écran sans monopoliser la hauteur de lecture sur mobile.
 
-### 📱 6. Multi-Écrans, TV Box & Playlist IPTV M3U (2026)
-* **Playlist IPTV globale `/playlist.m3u`** : Regroupement automatique normalisé par catégories (`Films`, `Séries TV`, `Musique`) avec titres d'épisodes propres (`tvg-name`).
-* **Guide TV interactif intégré** : Tutoriels pas à pas pour Android TV & Google TV (**TiviMate**, VLC), Apple TV (**IPTVX**), Kodi (**PVR IPTV Simple Client**) et Plex Media Server (via **Threadfin** / **xTeVe**).
+### 📚 6. Lecteur Universel d'eBooks & Bandes Dessinées (EPUB, PDF, CBR, CBZ)
+* **Lecteur Web Zéro-Plugin Universel** : Lisez vos livres, magazines, mangas et comics directement dans votre navigateur sur PC, Mac, smartphone ou iPad (Safari compatible).
+* **Prise en charge multi-formats** :
+  - **EPUB** : Pagination instantanée via flux mémoire `ArrayBuffer`, navigation par chapitres, thèmes de lecture (Sombre, Sépia, Clair), taille de police ajustable (12px à 36px) et polices typographiques soignées (Serif, Sans-serif).
+  - **PDF** : Moteur de rendu haute définition vectoriel avec zoom continu et défilement fluide.
+  - **CBR & CBZ** : Décompression client ultra-rapide (archives ZIP/RAR), visionneuse d'images haute résolution avec modes d'ajustement (Largeur de page, Hauteur, Plein écran).
+* **Sommaire Interactif Opaque (TOC)** : Tiroir coulissant avec table des matières, progression de lecture et fermeture tactile au clic extérieur.
+* **Détection automatique sur les cartes** : Bouton `📖 Lire l'eBook` affiché directement sur les torrents contenant des livres ou bandes dessinées.
+
+### 📱 7. Multi-Écrans, TV Box & Playlist IPTV M3U (2026)
+* **Playlist IPTV globale `/playlist.m3u` avec VOD** :
+  - Balise normalisée `#EXT-X-PLAYLIST-TYPE:VOD` pour une intégration native comme catalogue à la demande.
+  - **Regroupement intelligent par Séries & Saisons** (`group-title="Nom Série - S01"`), évitant de mélanger des centaines d'épisodes en vrac.
+  - Métadonnées complètes injectées : `tvg-name`, `series`, `season`, `episode`.
+  - Possibilité de filtrer par catégorie (`?category=films`, `?category=series`, `?category=music`) ou de forcer le regroupement classique (`?grouping=category`).
+* **Guide TV interactif intégré** :
+  - Onglet dédié **VLC** (PC, Mac, iPhone/iPad, Android TV).
+  - Onglet dédié **Android TV / Google TV** (TiviMate, IPTV Smarters).
+  - Onglet dédié **Apple TV (tvOS)** (IPTVX, VLC).
+  - Onglets Plex (**Threadfin** / **xTeVe**) et Kodi (**PVR IPTV Simple Client**).
 * **Génération de flux VLC (.m3u) & QR Code mobile** : Lecture immédiate sur smartphone, tablette ou lecteur multimédia local.
-* **Compatibilité 4K HEVC & Navigateurs modernes** : Détection matérielle directe (VA-API / FFmpeg sous Linux, Media Foundation sous Windows, VideoToolbox sous macOS) sans avertissement intempestif.
+* **Compatibilité 4K HEVC & Navigateurs modernes** : Détection matérielle directe sans avertissement intempestif.
 * **Gestion automatique du Cast** : Détection de disponibilité du récepteur Chromecast / AirPlay avec masquage automatique du bouton si non supporté.
-* **Support Traefik & HTTP Basic Auth** : Compatibilité totale avec Traefik sans blocage 401 grâce à `PUBLIC_AUTH_CREDENTIALS` et `?auth=user:password`.
+* **Support Traefik & HTTP Basic Auth** : Compatibilité totale avec Traefik sans blocage 401 grâce à `PUBLIC_AUTH_CREDENTIALS` et repli automatique en polling HTTP.
 
-### 👥 7. Système Multi-Utilisateurs Transparent & Confidentialité
+### 👥 8. Système Multi-Utilisateurs Transparent & Confidentialité
 * **Attribution automatique de pseudo** : Détection de l'appareil (`iPhone-Renard`, `PC-Win-Loup`, `Mac-Faucon`, etc.) ou tirage aléatoire d'un nom mémorable (`RenardMalin`, `PandaZen`) mémorisé localement sans aucun compte à créer. Bouton 🎲 de re-tirage en 1 clic.
 * **Filtre « Mes ajouts »** : Bouton d'accès rapide pour n'afficher que ses propres téléchargements.
 * **Torrents Privés (🔒)** : Possibilité de marquer un torrent comme privé pour le masquer complètement aux yeux des autres utilisateurs.
+* **Anonymisation de l'auteur** : Les utilisateurs standards voient uniquement un badge temporel neutre (`🕒 Récent`) ou `👤 Moi`, tandis que l'administrateur peut identifier précisément chaque auteur.
 * **Mode Administrateur sécurisé (`ADMIN_PASSWORD`)** : Verrouillé par mot de passe en variable d'environnement pour inspecter l'ensemble des torrents et forcer le nettoyage du serveur.
 
-### 🛡️ 8. Surveillance Disque & Nettoyage Automatique
+### 🛡️ 9. Surveillance Disque & Nettoyage Automatique
 * **Moniteur d'espace disque en temps réel** : Analyse régulière de l'espace libre (`MIN_FREE_DISK_MB`) pour empêcher la saturation du disque système.
+* **Réservation prédictive de quota (Anti-overcommit)** : Calcul instantané en mémoire de l'espace alloué sans sollicitation I/O superflue du disque.
 * **Quota disque configurable** : Définissez un quota maximum en Go (`MAX_DISK_QUOTA_GB`).
 * **Purge automatique programmable** : Ordonnanceur hebdomadaire configurable pour supprimer les torrents expirés non épinglés.
 * **Purge manuelle en 1 clic** : Bouton dans l'interface avec confirmation et rapport d'espace libéré.
 * **Épinglage de torrents (Pin)** : Protège vos films et séries favoris contre toute suppression automatique.
 
-### 🎯 9. Libellés Adaptatifs Intelligents
-* Adaptation dynamique du bouton d'action selon le contenu :
+### 📱 10. Ergonomie Mobile & Affichage Haute Densité
+* **Arborescence des fichiers adaptative** : Sur smartphone, chaque fichier s'organise sur deux lignes nettes (Ligne 1 : case + icône + nom complet sans écrasement ; Ligne 2 : taille + badge de complétion + boutons d'action), évitant toute troncature ou coupure par le bord d'écran.
+* **Cartes C411 anti-débordement** : Nom de release et badges techniques encapsulés avec retour à la ligne et ellipses automatiques.
+* **Libellés adaptatifs intelligents** :
   - **Vidéos** : `▶ Lancer sur Peerflix (Streaming)`
+  - **Livres numériques / BD** : `📖 Lire l'eBook`
   - **Jeux / Applications / ISO** : `📥 Télécharger sur le serveur`
   - **Audio / Musique** : `🎵 Ajouter & Écouter`
 
@@ -221,24 +253,31 @@ Ouvrez ensuite votre navigateur sur **[http://localhost:9000](http://localhost:9
 * `POST /torrents/:infoHash/pin` : Bascule de l'épinglage (protection contre la purge automatique).
 
 ### 🎬 Streaming & Fichiers
-* `GET /torrents/:infoHash/files/:fileParam` : Streaming direct du fichier (support complet des en-têtes `Range: bytes=X-Y`).
+* `GET /torrents/:infoHash/files/:fileParam` : Streaming direct du fichier (support complet des en-têtes `Range: bytes=X-Y`, vidéo, audio, eBook ePub/PDF/CBR/CBZ).
 * `GET /torrents/:infoHash/probe/:fileParam` : Analyse multimédia via `ffprobe` (codecs vidéo/audio, pistes audio, sous-titres).
 * `GET /torrents/:infoHash/remux/:fileParam?audioTrack=0` : Flux Fragmented MP4 (`fmp4`) avec audio transcodé en AAC à la volée.
 * `GET /torrents/:infoHash/subtitles/:fileParam` : Extraction et conversion du sous-titre en format WebVTT (`.vtt`).
 * `GET /torrents/:infoHash/files/:fileParam/vlc.m3u` : Playlist M3U prête à l'emploi pour VLC / MPV.
+* `GET /torrents/:infoHash/preview/:fileParam` : Prévisualisation textuelle sécurisée (fichiers NFO, TXT).
+* `GET /torrents/:infoHash/hash/:fileParam` : Calcul d'intégrité SHA-256 à la demande sur les fichiers complétés à 100%.
 * `GET /torrents/:infoHash/archive` : Téléchargement de l'ensemble du torrent sous forme d'archive `.zip`.
 * `POST /torrents/:infoHash/start` & `/stop` : Sélectionne ou désélectionne tous les fichiers du torrent.
 * `POST /torrents/:infoHash/start/:index` & `/stop/:index` : Sélectionne ou désélectionne un fichier spécifique.
 
+### 📺 Playlists IPTV & VOD
+* `GET /playlist.m3u` : Playlist globale IPTV au format VOD (`#EXT-X-PLAYLIST-TYPE:VOD`), avec regroupement par série/saison (`grouping=series` par défaut ou `grouping=category`), filtrage de catégorie (`category=films|series|music`) et filtrage par utilisateur (`user=...&onlyUser=true`).
+
 ### 🔍 Intégration C411
-* `GET /api/c411/status` : Vérifie si l'API C411 est configurée et joignable.
-* `GET /api/c411/profile` : Récupère le profil utilisateur (avatar, ratio, Zen, Freeleech).
-* `GET /api/c411/search?q=...&cat=...` : Recherche de releases via Torznab proxyfié côté serveur.
-* `POST /api/c411/download` : Téléchargement direct du `.torrent` et injection instantanée dans Peerflix (`{"id": "..."}`).
+* `GET /c411/status` : Vérifie si l'API C411 est configurée et joignable.
+* `GET /c411/profile` : Récupère le profil utilisateur (avatar, ratio, Zen, Freeleech).
+* `GET /c411/search?q=...&category=...` : Recherche multi-critères avancée (résolution, source, codec, HDR, audio, langues, sous-titres, saison, année, freeleech).
+* `GET /c411/details/:id` : Récupération de la fiche complète avec enrichissement TMDB (backdrop, synopsis, casting, note) et commentaires des membres.
+* `POST /c411/download` : Téléchargement direct du `.torrent` et injection instantanée dans Peerflix (`{"id": "...", "private": false}`).
 
 ### 💻 Système & Maintenance
 * `GET /system/status` : Statut du système, espace disque hôte libre, taille du cache et santé globale.
 * `POST /system/clean` : Déclenche manuellement la purge de tous les torrents non épinglés.
+* `POST /system/admin-auth` : Authentification pour le déverrouillage du mode administrateur.
 
 ---
 
