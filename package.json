@@ -21,10 +21,13 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@types/jszip": "^3.4.0",
     "archiver": "^7.0.1",
+    "epubjs": "^0.3.93",
     "express": "^4.21.2",
     "helmet": "^8.0.0",
     "iconv-lite": "^0.6.3",
+    "jszip": "^3.10.2",
     "morgan": "^1.10.0",
     "multer": "^2.5.0",
     "parse-torrent": "^11.0.16",

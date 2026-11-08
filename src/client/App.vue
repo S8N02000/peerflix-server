@@ -13,6 +13,7 @@ import NfoViewerModal from './components/NfoViewerModal.vue';
 import Sha256Modal from './components/Sha256Modal.vue';
 import C411SearchPanel from './components/C411SearchPanel.vue';
 import TvGuideModal from './components/TvGuideModal.vue';
+import EbookReaderModal from './components/EbookReaderModal.vue';
 import { fetchC411Status } from './services/api.js';
 import type { C411ProfileDTO } from '../shared/types.js';
 
@@ -62,10 +63,18 @@ const activeNfoTorrent = ref<TorrentDTO | null>(null);
 const activeHashFile = ref<TorrentFileDTO | null>(null);
 const activeHashTorrent = ref<TorrentDTO | null>(null);
 
+const activeEbookFile = ref<TorrentFileDTO | null>(null);
+const activeEbookTorrent = ref<TorrentDTO | null>(null);
+
 // Modal Handlers
 const handlePlayMedia = (file: TorrentFileDTO, torrent: TorrentDTO) => {
   activeVideoFile.value = file;
   activeVideoTorrent.value = torrent;
+};
+
+const handleReadEbook = (file: TorrentFileDTO, torrent: TorrentDTO) => {
+  activeEbookFile.value = file;
+  activeEbookTorrent.value = torrent;
 };
 
 const handleOpenQr = () => {
@@ -224,6 +233,7 @@ onMounted(async () => {
             @open-qr="handleOpenQrDirect"
             @preview-nfo="handlePreviewNfo"
             @compute-hash="handleComputeHash"
+            @read-ebook="handleReadEbook"
           />
         </section>
       </div>
@@ -294,6 +304,13 @@ onMounted(async () => {
       :system-status="systemStatus"
       :current-user="currentUser"
       @close="isTvGuideOpen = false"
+    />
+
+    <EbookReaderModal
+      v-if="activeEbookFile && activeEbookTorrent"
+      :file="activeEbookFile"
+      :torrent="activeEbookTorrent"
+      @close="activeEbookFile = null; activeEbookTorrent = null"
     />
   </div>
 </template>
@@ -532,5 +549,28 @@ onMounted(async () => {
 .toast-slide-leave-to {
   transform: translateY(20px);
   opacity: 0;
+}
+
+@media (max-width: 640px) {
+  .main-content {
+    padding: 0.75rem 0.5rem 2rem;
+  }
+  .main-view-nav {
+    gap: 0.35rem;
+    margin-bottom: 0.85rem;
+  }
+  .view-nav-tab {
+    flex: 1;
+    padding: 0.5rem 0.4rem;
+    font-size: 0.82rem;
+    justify-content: center;
+    gap: 0.35rem;
+  }
+  .c411-toast-alert {
+    bottom: 1rem;
+    right: 1rem;
+    left: 1rem;
+    max-width: calc(100% - 2rem);
+  }
 }
 </style>

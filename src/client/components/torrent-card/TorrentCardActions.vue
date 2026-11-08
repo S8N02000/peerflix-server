@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import type { TorrentDTO, TorrentFileDTO, SystemStatusDTO } from '../../../shared/types.js';
 import { getExternalBaseUrl, getSavedAuthCredentials } from '../../utils/auth-url.js';
+import { isEbookFile } from '../../utils/ebook-helper.js';
 
 const props = defineProps<{
   torrent: TorrentDTO;
@@ -12,8 +13,13 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'play-media', file: TorrentFileDTO, torrent: TorrentDTO): void;
   (e: 'preview-nfo', file: TorrentFileDTO, torrent: TorrentDTO): void;
+  (e: 'read-ebook', file: TorrentFileDTO, torrent: TorrentDTO): void;
   (e: 'toggle-expand'): void;
 }>();
+
+const mainEbookFile = computed(() => {
+  return props.torrent.files.find((f) => isEbookFile(f.name)) || null;
+});
 
 const videoFiles = computed(() => {
   return props.torrent.files
@@ -115,6 +121,17 @@ const copyAllDownloadLinks = async () => {
       @click="emit('play-media', mainVideoFile, torrent)"
     >
       {{ watchButtonLabel }}
+    </button>
+
+    <!-- Quick Read button if ebook / comic / pdf -->
+    <button
+      v-if="mainEbookFile"
+      type="button"
+      class="btn-main-action read"
+      title="Lire ce livre ou bande dessinée dans le lecteur intégré"
+      @click="emit('read-ebook', mainEbookFile, torrent)"
+    >
+      📖 Lire l'eBook
     </button>
 
     <!-- Quick Episode Selector for TV Series / Complete Seasons -->
@@ -228,6 +245,16 @@ const copyAllDownloadLinks = async () => {
 }
 .btn-main-action.play:hover {
   background: #059669;
+}
+
+.btn-main-action.read {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: white;
+  border: 1px solid rgba(139, 92, 246, 0.4);
+}
+.btn-main-action.read:hover {
+  background: linear-gradient(135deg, #a78bfa, #8b5cf6);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.35);
 }
 
 .btn-main-action.download-file {
@@ -349,5 +376,72 @@ const copyAllDownloadLinks = async () => {
 .select-quick-ep option {
   background: #12131a;
   color: #f3f4f6;
+}
+
+@media (max-width: 640px) {
+  .actions-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+    padding-top: 0.6rem;
+  }
+  .btn-main-action.play {
+    grid-column: span 2;
+    width: 100%;
+    justify-content: center;
+    padding: 0.6rem;
+    font-size: 0.88rem;
+  }
+  .series-quick-select-box {
+    grid-column: span 2;
+    width: 100%;
+  }
+  .select-quick-ep {
+    width: 100%;
+    padding: 0.5rem;
+    text-align: center;
+  }
+  .btn-main-action.download-file {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+    font-size: 0.75rem;
+    padding: 0.45rem 0.5rem;
+  }
+  .btn-main-action.download-zip {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+    font-size: 0.75rem;
+    padding: 0.45rem 0.5rem;
+  }
+  .btn-m3u {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+    display: flex;
+    align-items: center;
+    font-size: 0.75rem;
+    padding: 0.45rem 0.5rem;
+  }
+  .btn-copy-links {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    padding: 0.45rem 0.5rem;
+  }
+  .btn-nfo-quick {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    padding: 0.45rem 0.5rem;
+  }
+  .btn-accordion {
+    grid-column: span 2;
+    margin: 0.2rem auto 0;
+    justify-content: center;
+  }
 }
 </style>

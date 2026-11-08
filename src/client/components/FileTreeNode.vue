@@ -3,6 +3,7 @@ import type { TorrentFileDTO, FileCategory } from '../../shared/types.js';
 import { formatBytes } from '../composables/useTorrents.js';
 import type { TreeNode } from './FileTree.vue';
 import { getExternalBaseUrl, getSavedAuthCredentials } from '../utils/auth-url.js';
+import { isEbookFile } from '../utils/ebook-helper.js';
 
 const props = defineProps<{
   node: TreeNode;
@@ -28,6 +29,7 @@ const emit = defineEmits<{
   (e: 'open-qr', file: TorrentFileDTO): void;
   (e: 'preview-nfo', file: TorrentFileDTO): void;
   (e: 'compute-hash', file: TorrentFileDTO): void;
+  (e: 'read-ebook', file: TorrentFileDTO): void;
 }>();
 
 const getFileIcon = (category: FileCategory): string => {
@@ -88,76 +90,93 @@ const onCheckboxChange = (file: TorrentFileDTO, e: Event) => {
           @open-qr="emit('open-qr', $event)"
           @preview-nfo="emit('preview-nfo', $event)"
           @compute-hash="emit('compute-hash', $event)"
+          @read-ebook="emit('read-ebook', $event)"
         />
       </div>
     </div>
 
     <!-- Leaf File Row -->
     <div v-else-if="node.file" class="file-row">
-      <input
-        type="checkbox"
-        :checked="node.file.selected"
-        class="file-checkbox"
-        @change="onCheckboxChange(node.file, $event)"
-      />
-      <span class="file-icon">{{ getFileIcon(node.file.category) }}</span>
-      <span class="file-name" :title="node.file.name">{{ node.file.name }}</span>
-      <span class="file-size">{{ formatBytes(node.file.length) }}</span>
-      <span v-if="node.file.isComplete" class="badge-complete">100% Prêt</span>
+      <div class="file-info-group">
+        <input
+          type="checkbox"
+          :checked="node.file.selected"
+          class="file-checkbox"
+          @change="onCheckboxChange(node.file, $event)"
+        />
+        <span class="file-icon">{{ getFileIcon(node.file.category) }}</span>
+        <span class="file-name" :title="node.file.name">{{ node.file.name }}</span>
+      </div>
 
-      <div class="file-actions">
-        <!-- Video & Audio buttons: Play + VLC + QR -->
-        <template v-if="node.file.category === 'video' || node.file.category === 'audio'">
+      <div class="file-actions-group">
+        <span class="file-size font-mono">{{ formatBytes(node.file.length) }}</span>
+        <span v-if="node.file.isComplete" class="badge-complete">100% Prêt</span>
+
+        <div class="file-actions">
+          <!-- Video & Audio buttons: Play + VLC + QR -->
+          <template v-if="node.file.category === 'video' || node.file.category === 'audio'">
+            <button
+              type="button"
+              class="btn-action play"
+              @click="emit('play-media', node.file!)"
+            >
+              ▶ {{ node.file.category === 'video' ? 'Regarder' : 'Écouter' }}
+            </button>
+            <a
+              :href="getVlcUrl(node.file.index)"
+              class="btn-action vlc"
+              download
+              title="Télécharger la playlist M3U pour lancer instantanément dans VLC (PC / Mac / Mobile)"
+            >
+              🟠 VLC
+            </a>
+            <button
+              type="button"
+              class="btn-action qr"
+              title="Afficher le QR code pour diffuser sur mobile ou TV"
+              @click="emit('open-qr', node.file!)"
+            >
+              📱 QR
+            </button>
+          </template>
+
+          <!-- eBook / Comic / PDF reader button -->
           <button
+            v-if="isEbookFile(node.file.name)"
             type="button"
-            class="btn-action play"
-            @click="emit('play-media', node.file!)"
+            class="btn-action read"
+            title="Lire ce livre ou bande dessinée dans le lecteur intégré"
+            @click="emit('read-ebook', node.file!)"
           >
-            ▶ {{ node.file.category === 'video' ? 'Regarder' : 'Écouter' }}
+            📖 Lire
           </button>
-          <a
-            :href="getVlcUrl(node.file.index)"
-            class="btn-action vlc"
-            download
-            title="Télécharger la playlist M3U pour lancer instantanément dans VLC (PC / Mac / Mobile)"
+
+          <!-- NFO viewer button -->
+          <button
+            v-if="node.file.category === 'info'"
+            type="button"
+            class="btn-action nfo"
+            @click="emit('preview-nfo', node.file!)"
           >
-            🟠 VLC
+            👁 NFO
+          </button>
+
+          <!-- SHA-256 integrity hash -->
+          <button
+            v-if="node.file.isComplete"
+            type="button"
+            class="btn-action hash"
+            title="Vérifier l'empreinte SHA-256"
+            @click="emit('compute-hash', node.file!)"
+          >
+            #️⃣ SHA-256
+          </button>
+
+          <!-- Download button -->
+          <a :href="node.file.downloadUrl" class="btn-action download" title="Télécharger le fichier directement">
+            ⬇
           </a>
-          <button
-            type="button"
-            class="btn-action qr"
-            title="Afficher le QR code pour diffuser sur mobile ou TV"
-            @click="emit('open-qr', node.file!)"
-          >
-            📱 QR
-          </button>
-        </template>
-
-        <!-- NFO viewer button -->
-        <button
-          v-if="node.file.category === 'info'"
-          type="button"
-          class="btn-action nfo"
-          @click="emit('preview-nfo', node.file!)"
-        >
-          👁 NFO
-        </button>
-
-        <!-- SHA-256 integrity hash -->
-        <button
-          v-if="node.file.isComplete"
-          type="button"
-          class="btn-action hash"
-          title="Vérifier l'empreinte SHA-256"
-          @click="emit('compute-hash', node.file!)"
-        >
-          #️⃣ SHA-256
-        </button>
-
-        <!-- Download button -->
-        <a :href="node.file.downloadUrl" class="btn-action download" title="Télécharger le fichier directement">
-          ⬇
-        </a>
+        </div>
       </div>
     </div>
   </div>
@@ -237,7 +256,8 @@ const onCheckboxChange = (file: TorrentFileDTO, e: Event) => {
 .file-row {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  justify-content: space-between;
+  gap: 0.75rem;
   padding: 0.35rem 0.6rem;
   border-radius: 0.375rem;
   font-size: 0.85rem;
@@ -248,21 +268,39 @@ const onCheckboxChange = (file: TorrentFileDTO, e: Event) => {
   background: rgba(255, 255, 255, 0.04);
 }
 
+.file-info-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
 .file-checkbox {
   cursor: pointer;
   accent-color: #3b82f6;
+  flex-shrink: 0;
 }
 
 .file-icon {
   font-size: 1rem;
+  flex-shrink: 0;
 }
 
 .file-name {
   flex: 1;
+  min-width: 0;
   color: #cbd5e1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.file-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .file-size {
@@ -285,7 +323,7 @@ const onCheckboxChange = (file: TorrentFileDTO, e: Event) => {
 .file-actions {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
   flex-shrink: 0;
 }
 
@@ -333,6 +371,18 @@ const onCheckboxChange = (file: TorrentFileDTO, e: Event) => {
   background: rgba(147, 51, 234, 0.3);
 }
 
+.btn-action.read {
+  background: rgba(139, 92, 246, 0.18);
+  color: #c084fc;
+  border-color: rgba(139, 92, 246, 0.35);
+  font-weight: 600;
+}
+
+.btn-action.read:hover {
+  background: rgba(139, 92, 246, 0.35);
+  color: #ffffff;
+}
+
 .btn-action.nfo {
   background: rgba(6, 182, 212, 0.15);
   color: #06b6d4;
@@ -362,5 +412,47 @@ const onCheckboxChange = (file: TorrentFileDTO, e: Event) => {
 .btn-action.download:hover {
   background: #4b5563;
   color: #ffffff;
+}
+
+@media (max-width: 768px) {
+  .folder-children {
+    margin-left: 0.65rem;
+    padding-left: 0.35rem;
+  }
+
+  .file-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+    padding: 0.45rem 0.5rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  .file-info-group {
+    width: 100%;
+  }
+
+  .file-name {
+    font-size: 0.82rem;
+    font-weight: 500;
+  }
+
+  .file-actions-group {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .file-actions {
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+
+  .btn-action {
+    font-size: 0.72rem;
+    padding: 0.2rem 0.45rem;
+  }
 }
 </style>

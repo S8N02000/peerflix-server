@@ -28,6 +28,7 @@ const emit = defineEmits<{
   (e: 'open-qr', file: TorrentFileDTO, torrent: TorrentDTO): void;
   (e: 'preview-nfo', file: TorrentFileDTO, torrent: TorrentDTO): void;
   (e: 'compute-hash', file: TorrentFileDTO, torrent: TorrentDTO): void;
+  (e: 'read-ebook', file: TorrentFileDTO, torrent: TorrentDTO): void;
 }>();
 
 const isExpanded = ref(false);
@@ -57,6 +58,7 @@ const isExpanded = ref(false);
       :is-expanded="isExpanded"
       @play-media="emit('play-media', $event, torrent)"
       @preview-nfo="emit('preview-nfo', $event, torrent)"
+      @read-ebook="emit('read-ebook', $event, torrent)"
       @toggle-expand="isExpanded = !isExpanded"
     />
 
@@ -74,6 +76,7 @@ const isExpanded = ref(false);
         @open-qr="emit('open-qr', $event, torrent)"
         @preview-nfo="emit('preview-nfo', $event, torrent)"
         @compute-hash="emit('compute-hash', $event, torrent)"
+        @read-ebook="emit('read-ebook', $event, torrent)"
       />
     </div>
   </div>

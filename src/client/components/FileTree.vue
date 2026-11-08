@@ -19,6 +19,7 @@ const emit = defineEmits<{
   (e: 'open-qr', file: TorrentFileDTO): void;
   (e: 'preview-nfo', file: TorrentFileDTO): void;
   (e: 'compute-hash', file: TorrentFileDTO): void;
+  (e: 'read-ebook', file: TorrentFileDTO): void;
 }>();
 
 const selectedFilesCount = computed(() => {
@@ -165,6 +166,7 @@ const treeRoot = computed<TreeNode[]>(() => {
         @open-qr="emit('open-qr', $event)"
         @preview-nfo="emit('preview-nfo', $event)"
         @compute-hash="emit('compute-hash', $event)"
+        @read-ebook="emit('read-ebook', $event)"
       />
     </template>
   </div>
@@ -179,6 +181,10 @@ const treeRoot = computed<TreeNode[]>(() => {
   border-radius: 0.5rem;
   padding: 0.75rem;
   border: 1px solid rgba(255, 255, 255, 0.05);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .file-tree-toolbar {
