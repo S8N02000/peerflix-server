@@ -6,6 +6,7 @@ const props = defineProps<{
   searchQuery: string;
   hideJunkFiles?: boolean;
   sortBy?: 'recent' | 'name' | 'size' | 'progress';
+  onlyMyTorrents?: boolean;
   counts: {
     all: number;
     video: number;
@@ -19,6 +20,7 @@ const emit = defineEmits<{
   (e: 'update:selectedCategory', category: string): void;
   (e: 'update:searchQuery', query: string): void;
   (e: 'update:sortBy', val: 'recent' | 'name' | 'size' | 'progress'): void;
+  (e: 'update:onlyMyTorrents', val: boolean): void;
 }>();
 
 const searchInput = ref<HTMLInputElement | null>(null);
@@ -97,6 +99,17 @@ onUnmounted(() => {
 
     <!-- Search, Sort & Junk Toggle Controls -->
     <div class="controls-right">
+      <!-- Only My Torrents Toggle Button -->
+      <button
+        type="button"
+        class="btn-filter-my"
+        :class="{ active: onlyMyTorrents }"
+        title="Afficher uniquement les torrents ajoutés par moi"
+        @click="emit('update:onlyMyTorrents', !onlyMyTorrents)"
+      >
+        👤 Mes ajouts
+      </button>
+
       <!-- Sort Select -->
       <div class="sort-box" title="Trier les torrents">
         <span class="sort-icon">↕</span>
@@ -248,5 +261,32 @@ onUnmounted(() => {
 
 .search-input::placeholder {
   color: #64748b;
+}
+
+.btn-filter-my {
+  background: #14151f;
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.btn-filter-my:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
+}
+
+.btn-filter-my.active {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.4);
 }
 </style>

@@ -119,6 +119,9 @@ vi.mock('../../src/client/composables/useTorrents.js', async () => {
       searchQuery,
       selectedCategory,
       sortBy,
+      onlyMyTorrents: ref(false),
+      currentUser: ref(''),
+      isAdmin: ref(false),
       hideJunkFiles,
       isLoading: ref(false),
       errorMessage: ref(null),
@@ -130,6 +133,9 @@ vi.mock('../../src/client/composables/useTorrents.js', async () => {
       uploadFiles: vi.fn(),
       deleteTorrent: vi.fn(),
       togglePin: vi.fn(),
+      toggleVisibility: vi.fn(),
+      updateCurrentUser: vi.fn(),
+      updateIsAdmin: vi.fn(),
       pauseTorrent: vi.fn(),
       resumeTorrent: vi.fn(),
       selectFile: vi.fn(),
@@ -139,6 +145,7 @@ vi.mock('../../src/client/composables/useTorrents.js', async () => {
     formatBytes: (b: number) => `${b} B`,
     formatSpeed: (s: number) => `${s} B/s`,
     formatDuration: (d: number) => `${d}s`,
+    formatTimeAgo: (timestamp?: number) => 'il y a 2h',
   };
 });
 

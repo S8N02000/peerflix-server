@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { C411SearchResultDTO, C411TorrentDetailsDTO } from '../../shared/types.js';
 import { fetchC411Details } from '../services/api.js';
 import { formatBytes } from '../composables/useTorrents.js';
@@ -104,6 +104,30 @@ const handleAvatarError = (author: string) => {
 const getMeta = (title?: string) => {
   return parseReleaseMetadata(title || '');
 };
+
+const actionButtonLabel = computed(() => {
+  const cat = (props.item?.categoryName || '').toLowerCase();
+  if (cat.includes('jeux') || cat.includes('app') || cat.includes('logiciel')) {
+    return '📥 Télécharger sur le serveur';
+  }
+  if (cat.includes('audio') || cat.includes('musique')) {
+    return '🎵 Ajouter & Écouter';
+  }
+  if (cat.includes('livre') || cat.includes('bd') || cat.includes('ebook')) {
+    return '📥 Télécharger sur le serveur';
+  }
+  return '▶ Lancer sur Peerflix (Streaming)';
+});
+
+const hasRealDescription = computed(() => {
+  if (!details.value?.descriptionHtml) return false;
+  const raw = details.value.descriptionHtml;
+  if (raw.includes('Aucune description disponible') || raw.includes('Aucune description détaillée')) {
+    return false;
+  }
+  const clean = raw.replace(/<[^>]+>/g, '').trim();
+  return clean.length > 25;
+});
 </script>
 
 <template>
@@ -153,7 +177,7 @@ const getMeta = (title?: string) => {
           >
             <span v-if="isAdding">⏳ Ajout...</span>
             <span v-else-if="isAdded">✓ Ajouté</span>
-            <span v-else>📥 Lancer sur Peerflix</span>
+            <span v-else>{{ actionButtonLabel }}</span>
           </button>
           <button type="button" class="btn-modal-close" title="Fermer (Échap)" @click="emit('close')">
             ✕
@@ -235,13 +259,25 @@ const getMeta = (title?: string) => {
         <!-- TAB 1: PRESENTATION & DESCRIPTION (Faithful to C411) -->
         <div v-show="activeTab === 'presentation'" class="tab-pane-presentation">
           <div
-            v-if="details?.descriptionHtml"
+            v-if="hasRealDescription"
             class="c411-rich-description"
-            v-html="details.descriptionHtml"
+            v-html="details?.descriptionHtml"
           ></div>
-          <div v-else class="empty-description">
-            <span class="empty-icon">ℹ️</span>
-            <p>Aucune description détaillée n'a été fournie pour cette release.</p>
+          <div v-else class="empty-description-box">
+            <div class="empty-c411-badge">Tracker Privé C411</div>
+            <h3 class="empty-c411-title">Présentation & Fiche complète</h3>
+            <p class="empty-c411-desc">
+              Sur les trackers privés comme C411, les descriptions graphiques complètes (captures d'écran, instructions d'installation, configuration requise) sont sécurisées et réservées aux sessions web.
+            </p>
+            <a
+              v-if="details?.c411PageUrl"
+              :href="details.c411PageUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn-c411-cta"
+            >
+              🔗 Ouvrir la présentation & les images sur C411 ↗
+            </a>
           </div>
         </div>
 
@@ -277,12 +313,21 @@ const getMeta = (title?: string) => {
             </div>
           </div>
 
-          <div v-else class="empty-comments-state">
+          <div v-else class="empty-comments-box">
             <span class="empty-comments-icon">💬</span>
-            <p class="empty-comments-title">Aucun commentaire pour le moment</p>
+            <p class="empty-comments-title">Commentaires & Retours de test</p>
             <p class="empty-comments-subtitle">
-              Soyez le premier à tester cette release et à donner votre avis sur C411 !
+              Consultez les avis de la communauté, les notes et les retours techniques directement sur la fiche C411 :
             </p>
+            <a
+              v-if="details?.c411PageUrl"
+              :href="details.c411PageUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn-c411-cta"
+            >
+              🔗 Voir les commentaires sur C411 ↗
+            </a>
           </div>
         </div>
 
@@ -306,7 +351,7 @@ const getMeta = (title?: string) => {
         >
           <span v-if="isAdding">⏳ Téléchargement en cours...</span>
           <span v-else-if="isAdded">✓ Torrent ajouté à vos téléchargements</span>
-          <span v-else>📥 Lancer sur Peerflix (Streaming Direct)</span>
+          <span v-else>{{ actionButtonLabel }}</span>
         </button>
       </div>
     </div>
@@ -729,10 +774,71 @@ const getMeta = (title?: string) => {
 }
 
 .empty-comments-state,
-.empty-description {
+.empty-description,
+.empty-description-box,
+.empty-comments-box {
   text-align: center;
   padding: 3rem 1.5rem;
-  color: #64748b;
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-c411-badge {
+  display: inline-block;
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 3px 10px;
+  border-radius: 20px;
+  margin-bottom: 0.75rem;
+}
+
+.empty-c411-title,
+.empty-comments-title {
+  font-weight: 700;
+  color: #f1f5f9;
+  font-size: 1.1rem;
+  margin: 0 0 0.5rem 0;
+}
+
+.empty-c411-desc,
+.empty-comments-subtitle {
+  font-size: 0.88rem;
+  color: #94a3b8;
+  max-width: 500px;
+  line-height: 1.5;
+  margin: 0 0 1.25rem 0;
+}
+
+.btn-c411-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, #0284c7, #0369a1);
+  color: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 9px 18px;
+  border-radius: 8px;
+  text-decoration: none;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
+  transition: all 0.2s ease;
+}
+
+.btn-c411-cta:hover {
+  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(14, 165, 233, 0.45);
 }
 
 .empty-comments-icon,
@@ -740,17 +846,6 @@ const getMeta = (title?: string) => {
   font-size: 2.5rem;
   display: block;
   margin-bottom: 0.5rem;
-}
-
-.empty-comments-title {
-  font-weight: 700;
-  color: #cbd5e1;
-  font-size: 1rem;
-  margin-bottom: 0.25rem;
-}
-
-.empty-comments-subtitle {
-  font-size: 0.82rem;
 }
 
 /* NFO Tab */

@@ -113,6 +113,76 @@ const isHevc = computed(() => {
   return vCodec === 'hevc' || vCodec === 'h265';
 });
 
+const browserInfo = computed(() => {
+  if (typeof navigator === 'undefined') {
+    return { isFirefox: false, isChrome: true, isSafari: false, isEdge: false, name: 'Navigateur' };
+  }
+  const ua = navigator.userAgent;
+  const isFirefox = /firefox|fxios/i.test(ua);
+  const isEdge = /edg/i.test(ua);
+  const isChrome = /chrome|crios/i.test(ua) && !isEdge;
+  const isSafari = /safari/i.test(ua) && !isChrome && !isEdge;
+  let name = 'Navigateur';
+  if (isFirefox) name = 'Firefox';
+  else if (isEdge) name = 'Microsoft Edge';
+  else if (isChrome) name = 'Google Chrome';
+  else if (isSafari) name = 'Apple Safari';
+  return { isFirefox, isChrome, isSafari, isEdge, name };
+});
+
+const isBrowserHevcCompatible = computed(() => {
+  if (typeof document === 'undefined') return true;
+  const testVideo = document.createElement('video');
+  const canPlayHevc1 = testVideo.canPlayType('video/mp4; codecs="hev1.1.6.L93.B0"');
+  const canPlayHevc2 = testVideo.canPlayType('video/mp4; codecs="hvc1.1.6.L93.B0"');
+  const canPlayHevc3 = testVideo.canPlayType('video/mp4; codecs="hev1"');
+  const canPlayHevc4 = testVideo.canPlayType('video/mp4; codecs="hvc1"');
+  const canPlayMkvHevc = testVideo.canPlayType('video/x-matroska; codecs="hevc"');
+  const hasCanPlay = Boolean(canPlayHevc1 || canPlayHevc2 || canPlayHevc3 || canPlayHevc4 || canPlayMkvHevc);
+
+  // On modern Linux (via FFmpeg/VA-API) and Windows/macOS, Firefox, Chrome, Edge, Safari
+  // can decode HEVC smoothly via system hardware acceleration.
+  return hasCanPlay || browserInfo.value.isSafari || browserInfo.value.isChrome || browserInfo.value.isEdge;
+});
+
+const hevcWarningNeeded = computed(() => {
+  // Only show warning if the browser truly cannot decode HEVC or if an explicit playback error occurred
+  return isHevc.value && (!isBrowserHevcCompatible.value || hasCodecError.value);
+});
+
+const isCastOrAirPlaySupported = ref<boolean>(false);
+let castWatchId: number | null = null;
+
+const checkCastAvailability = () => {
+  const video = videoRef.value as any;
+  if (!video) return;
+
+  // 1. WebKit AirPlay detection (Safari / macOS / iOS)
+  if (typeof video.webkitShowPlaybackTargetPicker === 'function') {
+    if (typeof window !== 'undefined' && (window as any).WebKitPlaybackTargetAvailabilityEvent) {
+      video.addEventListener('webkitplaybacktargetavailabilitychanged', (event: any) => {
+        isCastOrAirPlaySupported.value = event.availability === 'available';
+      });
+    } else {
+      isCastOrAirPlaySupported.value = true;
+    }
+  }
+
+  // 2. Remote Playback API (Chrome / Edge with Chromecast device on network)
+  if (video.remote && typeof video.remote.watchAvailability === 'function') {
+    video.remote
+      .watchAvailability((available: boolean) => {
+        isCastOrAirPlaySupported.value = available;
+      })
+      .then((id: number) => {
+        castWatchId = id;
+      })
+      .catch(() => {
+        isCastOrAirPlaySupported.value = false;
+      });
+  }
+};
+
 const toggleStreamMode = () => {
   forceDirectStream.value = !forceDirectStream.value;
   hasCodecError.value = false;
@@ -207,17 +277,17 @@ const triggerPictureInPicture = async () => {
   }
 };
 
-const triggerAirPlayOrCast = () => {
+const triggerAirPlayOrCast = async () => {
   const video = videoRef.value as any;
   if (!video) return;
   try {
     if (typeof video.webkitShowPlaybackTargetPicker === 'function') {
       video.webkitShowPlaybackTargetPicker();
     } else if (video.remote && typeof video.remote.prompt === 'function') {
-      video.remote.prompt();
+      await video.remote.prompt();
     }
-  } catch (err) {
-    console.error('Cast / AirPlay prompt error:', err);
+  } catch (err: any) {
+    console.warn('Cast / AirPlay prompt cancelled or unsupported:', err?.message);
   }
 };
 
@@ -362,10 +432,18 @@ onMounted(() => {
     // Ignore
   }
   fetchProbeData();
+  setTimeout(() => {
+    checkCastAvailability();
+  }, 300);
 });
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown);
+  if (videoRef.value && (videoRef.value as any).remote && castWatchId !== null) {
+    try {
+      (videoRef.value as any).remote.cancelWatchAvailability(castWatchId);
+    } catch {}
+  }
 });
 </script>
 
@@ -505,8 +583,9 @@ onUnmounted(() => {
               🖼 PiP
             </button>
 
-            <!-- Cast / Airplay -->
+            <!-- Cast / Airplay (Shown ONLY if browser or environment supports it and targets are available) -->
             <button
+              v-if="isCastOrAirPlaySupported"
               type="button"
               class="btn-action-icon"
               title="Diffuser via AirPlay ou Chromecast"
@@ -549,11 +628,16 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- 4K HEVC / Info Banner -->
-      <div v-if="isHevc" class="hevc-info-banner">
-        <span class="hevc-banner-icon">🎬</span>
+      <!-- 4K HEVC / Info & Codec Compatibility Banner -->
+      <div v-if="isHevc" class="hevc-info-banner" :class="{ 'hevc-warning': hevcWarningNeeded }">
+        <span class="hevc-banner-icon">{{ hevcWarningNeeded ? '⚠️' : '🎬' }}</span>
         <div class="hevc-banner-text">
-          <strong>Lecture active (Firefox & Chrome) :</strong> En streaming web direct, le curseur avance au rythme du téléchargement. Pour <strong>sauter directement au milieu ou à n'importe quelle minute du film</strong>, utilisez <a :href="vlcM3uUrl" class="btn-banner-link vlc">🟠 VLC</a> (priorisation instantanée des morceaux par le moteur BitTorrent).
+          <template v-if="hevcWarningNeeded">
+            <strong>Format HEVC (H.265) sous {{ browserInfo.name }} :</strong> Ce navigateur ne prend généralement pas en charge le codec HEVC nativement. Pour une lecture directe sans faille, utilisez <strong>Google Chrome</strong>, <strong>Microsoft Edge</strong> ou <strong>Safari</strong>. Ou cliquez sur <a :href="vlcM3uUrl" class="btn-banner-link vlc">🟠 VLC</a> pour lancer instantanément le film sans aucune contrainte de codec.
+          </template>
+          <template v-else>
+            <strong>Lecture active ({{ browserInfo.name }}) :</strong> Codec HEVC compatible avec votre navigateur. En streaming web direct, le curseur avance au rythme du téléchargement. Pour <strong>sauter directement au milieu du film</strong>, utilisez <a :href="vlcM3uUrl" class="btn-banner-link vlc">🟠 VLC</a> (priorisation instantanée des morceaux par BitTorrent).
+          </template>
         </div>
       </div>
 
@@ -920,6 +1004,12 @@ onUnmounted(() => {
   gap: 0.6rem;
   font-size: 0.8rem;
   color: #fcd34d;
+}
+
+.hevc-info-banner.hevc-warning {
+  background: rgba(239, 68, 68, 0.15);
+  border-bottom: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
 }
 
 .hevc-banner-icon {

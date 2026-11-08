@@ -12,6 +12,7 @@ import QrCodeModal from './components/QrCodeModal.vue';
 import NfoViewerModal from './components/NfoViewerModal.vue';
 import Sha256Modal from './components/Sha256Modal.vue';
 import C411SearchPanel from './components/C411SearchPanel.vue';
+import TvGuideModal from './components/TvGuideModal.vue';
 import { fetchC411Status } from './services/api.js';
 import type { C411ProfileDTO } from '../shared/types.js';
 
@@ -21,6 +22,9 @@ const {
   searchQuery,
   selectedCategory,
   sortBy,
+  onlyMyTorrents,
+  currentUser,
+  isAdmin,
   hideJunkFiles,
   isLoading,
   errorMessage,
@@ -30,6 +34,9 @@ const {
   addTorrentByLink,
   uploadFiles,
   togglePin,
+  toggleVisibility,
+  updateCurrentUser,
+  updateIsAdmin,
   deleteTorrent,
   pauseTorrent,
   resumeTorrent,
@@ -42,6 +49,7 @@ const {
 } = useTorrents();
 
 // Modals state
+const isTvGuideOpen = ref(false);
 const activeVideoFile = ref<TorrentFileDTO | null>(null);
 const activeVideoTorrent = ref<TorrentDTO | null>(null);
 
@@ -124,8 +132,13 @@ onMounted(async () => {
     <AppHeader
       :system-status="systemStatus"
       :c411-profile="c411Profile"
+      :current-user="currentUser"
+      :is-admin="isAdmin"
       @clean-unpinned="cleanUnpinned"
       @open-c411="currentTab = 'c411'"
+      @open-tv-guide="isTvGuideOpen = true"
+      @update:current-user="updateCurrentUser"
+      @update:is-admin="updateIsAdmin"
     />
 
     <main class="main-content">
@@ -171,9 +184,11 @@ onMounted(async () => {
           :search-query="searchQuery"
           :sort-by="sortBy"
           :counts="categoryCounts"
+          :only-my-torrents="onlyMyTorrents"
           @update:selected-category="selectedCategory = $event"
           @update:search-query="searchQuery = $event"
           @update:sort-by="sortBy = $event"
+          @update:only-my-torrents="onlyMyTorrents = $event"
         />
 
         <!-- Torrents List Area -->
@@ -194,7 +209,10 @@ onMounted(async () => {
             :torrent="torrent"
             :system-status="systemStatus"
             :hide-junk-files="hideJunkFiles"
+            :current-user="currentUser"
+            :is-admin="isAdmin"
             @toggle-pin="togglePin"
+            @toggle-visibility="toggleVisibility"
             @pause="pauseTorrent"
             @resume="resumeTorrent"
             @delete="deleteTorrent"
@@ -269,6 +287,13 @@ onMounted(async () => {
       :file="activeHashFile"
       :torrent="activeHashTorrent"
       @close="activeHashFile = null; activeHashTorrent = null"
+    />
+
+    <TvGuideModal
+      :is-open="isTvGuideOpen"
+      :system-status="systemStatus"
+      :current-user="currentUser"
+      @close="isTvGuideOpen = false"
     />
   </div>
 </template>

@@ -1,10 +1,35 @@
 import type { TorrentDTO, SystemStatusDTO } from '../../shared/types.js';
+import { getCurrentUser, getIsAdmin, getSavedAdminToken } from '../utils/auth-url.js';
 
 function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const headers = new Headers(init?.headers || {});
+  headers.set('X-Peerflix-User', getCurrentUser());
+  if (getIsAdmin()) {
+    headers.set('X-Peerflix-Admin', 'true');
+    const token = getSavedAdminToken();
+    if (token) {
+      headers.set('X-Peerflix-Admin-Token', token);
+    }
+  }
+
   return fetch(input, {
     credentials: 'include',
-    ...init
+    ...init,
+    headers
   });
+}
+
+export async function verifyAdminPassword(password: string): Promise<{ success: boolean; token: string }> {
+  const res = await fetch('/system/admin-auth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Mot de passe administrateur incorrect' }));
+    throw new Error(err.message || 'Mot de passe administrateur incorrect');
+  }
+  return res.json();
 }
 
 export async function fetchTorrents(): Promise<TorrentDTO[]> {
@@ -19,11 +44,18 @@ export async function fetchSystemStatus(): Promise<SystemStatusDTO> {
   return res.json();
 }
 
-export async function addTorrent(link: string): Promise<{ infoHash: string }> {
+export async function addTorrent(
+  link: string,
+  options?: { isPrivate?: boolean; addedBy?: string }
+): Promise<{ infoHash: string }> {
   const res = await authFetch('/torrents', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ link })
+    body: JSON.stringify({
+      link,
+      addedBy: options?.addedBy || getCurrentUser(),
+      isPrivate: Boolean(options?.isPrivate)
+    })
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: 'Addition failed' }));
@@ -32,9 +64,16 @@ export async function addTorrent(link: string): Promise<{ infoHash: string }> {
   return res.json();
 }
 
-export async function uploadTorrents(files: FileList | File[]): Promise<{ infoHash?: string; results?: any[] }> {
+export async function uploadTorrents(
+  files: FileList | File[],
+  options?: { isPrivate?: boolean; addedBy?: string }
+): Promise<{ infoHash?: string; results?: any[] }> {
   const formData = new FormData();
   Array.from(files).forEach((f) => formData.append('file', f));
+  formData.append('addedBy', options?.addedBy || getCurrentUser());
+  if (options?.isPrivate) {
+    formData.append('isPrivate', 'true');
+  }
 
   const res = await authFetch('/upload', {
     method: 'POST',
@@ -51,6 +90,16 @@ export async function uploadTorrents(files: FileList | File[]): Promise<{ infoHa
 export async function togglePin(infoHash: string): Promise<{ pinned: boolean }> {
   const res = await authFetch(`/torrents/${infoHash}/pin`, { method: 'POST' });
   if (!res.ok) throw new Error(`Failed to toggle pin: HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function toggleTorrentVisibility(infoHash: string, isPrivate: boolean): Promise<{ isPrivate: boolean }> {
+  const res = await authFetch(`/torrents/${infoHash}/visibility`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ isPrivate })
+  });
+  if (!res.ok) throw new Error(`Failed to update visibility: HTTP ${res.status}`);
   return res.json();
 }
 
@@ -110,11 +159,18 @@ export async function searchC411(
   return res.json();
 }
 
-export async function addC411Torrent(id: string): Promise<{ infoHash: string }> {
+export async function addC411Torrent(
+  id: string,
+  options?: { isPrivate?: boolean; addedBy?: string }
+): Promise<{ infoHash: string }> {
   const res = await authFetch('/c411/add', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id })
+    body: JSON.stringify({
+      id,
+      addedBy: options?.addedBy || getCurrentUser(),
+      isPrivate: Boolean(options?.isPrivate)
+    })
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: 'Add torrent failed' }));

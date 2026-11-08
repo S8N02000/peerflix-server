@@ -2,19 +2,30 @@
 import { computed } from 'vue';
 import type { TorrentDTO } from '../../../shared/types.js';
 import { parseReleaseMetadata } from '../../utils/release-parser.js';
+import { formatTimeAgo } from '../../composables/useTorrents.js';
 
 const props = defineProps<{
   torrent: TorrentDTO;
+  currentUser?: string;
+  isAdmin?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'toggle-pin', infoHash: string): void;
+  (e: 'toggle-visibility', infoHash: string, isPrivate: boolean): void;
   (e: 'pause', infoHash: string): void;
   (e: 'resume', infoHash: string): void;
   (e: 'delete', infoHash: string): void;
 }>();
 
 const releaseMeta = computed(() => parseReleaseMetadata(props.torrent.name));
+
+const user = computed(() => (props.currentUser || '').toLowerCase().trim());
+const isAddedByMe = computed(() => {
+  if (!props.torrent.addedBy) return false;
+  return props.torrent.addedBy.toLowerCase().trim() === user.value;
+});
+const timeAgo = computed(() => formatTimeAgo(props.torrent.addedAt));
 
 const categoryBadge = computed(() => {
   switch (props.torrent.category) {
@@ -55,6 +66,24 @@ const confirmDelete = () => {
           >
             {{ categoryBadge.label }}
           </span>
+
+          <span
+            v-if="torrent.addedBy || torrent.addedAt"
+            class="badge-author"
+            :class="{ 'is-mine': isAddedByMe }"
+            :title="isAddedByMe ? 'Ajouté par vous' : (torrent.addedBy ? 'Ajouté par ' + torrent.addedBy : '')"
+          >
+            👤 {{ isAddedByMe ? 'Moi' : (torrent.addedBy || 'Ajouté') }} • {{ timeAgo }}
+          </span>
+
+          <span
+            v-if="torrent.isPrivate"
+            class="badge-private"
+            title="Ce torrent est privé (visible uniquement par son auteur et l'admin)"
+          >
+            🔒 Privé
+          </span>
+
           <h3 class="torrent-clean-title" :title="torrent.name">
             {{ releaseMeta.cleanTitle }}
             <span v-if="releaseMeta.year" class="title-year">({{ releaseMeta.year }})</span>
@@ -89,6 +118,17 @@ const confirmDelete = () => {
         @click="emit('toggle-pin', torrent.infoHash)"
       >
         📌 <span class="pin-text">{{ torrent.pinned ? 'Épinglé' : 'Épingler' }}</span>
+      </button>
+
+      <!-- Visibility Toggle (Private / Public) -->
+      <button
+        type="button"
+        class="btn-icon btn-visibility"
+        :class="{ 'is-private': torrent.isPrivate }"
+        :title="torrent.isPrivate ? 'Torrent privé (masqué aux autres). Cliquer pour rendre public.' : 'Torrent public. Cliquer pour masquer aux autres.'"
+        @click="emit('toggle-visibility', torrent.infoHash, !torrent.isPrivate)"
+      >
+        {{ torrent.isPrivate ? '🔒' : '👁️' }}
       </button>
 
       <!-- Status Badge -->
@@ -278,5 +318,39 @@ const confirmDelete = () => {
 .btn-delete:hover {
   background: rgba(239, 68, 68, 0.2);
   border-color: rgba(239, 68, 68, 0.4);
+}
+
+.badge-author {
+  background: rgba(255, 255, 255, 0.07);
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.badge-author.is-mine {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.badge-private {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.btn-visibility.is-private {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
 }
 </style>

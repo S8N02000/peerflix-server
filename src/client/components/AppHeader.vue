@@ -7,14 +7,68 @@ import { getExternalBaseUrl } from '../utils/auth-url.js';
 const props = defineProps<{
   systemStatus: SystemStatusDTO | null;
   c411Profile?: C411ProfileDTO | null;
+  currentUser?: string;
+  isAdmin?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'clean-unpinned'): void;
   (e: 'open-c411'): void;
+  (e: 'update:currentUser', val: string): void;
+  (e: 'update:isAdmin', val: boolean, token?: string): void;
+  (e: 'open-tv-guide'): void;
 }>();
 
+import { generateMemorablePseudo, saveCurrentUser, saveIsAdmin, saveAdminToken } from '../utils/auth-url.js';
+import { verifyAdminPassword } from '../services/api.js';
+
 const copied = ref(false);
+const showUserModal = ref(false);
+const newUserName = ref(props.currentUser || 'Moi');
+const newIsAdmin = ref(Boolean(props.isAdmin));
+const adminPasswordInput = ref('');
+const adminError = ref('');
+const isVerifyingAdmin = ref(false);
+
+const openUserModal = () => {
+  newUserName.value = props.currentUser || 'Moi';
+  newIsAdmin.value = Boolean(props.isAdmin);
+  adminPasswordInput.value = '';
+  adminError.value = '';
+  showUserModal.value = true;
+};
+
+const handleRerollPseudo = () => {
+  newUserName.value = generateMemorablePseudo();
+};
+
+const saveUserSettings = async () => {
+  adminError.value = '';
+
+  // If enabling admin mode and wasn't already verified
+  if (newIsAdmin.value && (!props.isAdmin || adminPasswordInput.value.trim())) {
+    isVerifyingAdmin.value = true;
+    try {
+      const res = await verifyAdminPassword(adminPasswordInput.value.trim());
+      saveIsAdmin(true, res.token);
+      emit('update:isAdmin', true, res.token);
+    } catch (err: any) {
+      adminError.value = err.message || 'Mot de passe administrateur incorrect';
+      isVerifyingAdmin.value = false;
+      return;
+    } finally {
+      isVerifyingAdmin.value = false;
+    }
+  } else if (!newIsAdmin.value) {
+    saveIsAdmin(false);
+    emit('update:isAdmin', false);
+  }
+
+  const cleanUser = newUserName.value.trim() || generateMemorablePseudo();
+  saveCurrentUser(cleanUser);
+  emit('update:currentUser', cleanUser);
+  showUserModal.value = false;
+};
 
 const handleCleanClick = () => {
   if (typeof window !== 'undefined') {
@@ -73,10 +127,22 @@ const formattedStorage = computed(() => {
   return `Stockage : ${used} / ${total} (${free} libres) ${disk.usedPercent}%`;
 });
 
+const playlistDownloadUrl = computed(() => {
+  const u = props.currentUser || 'Moi';
+  const params: string[] = [];
+  if (u && u !== 'Moi') params.push(`user=${encodeURIComponent(u)}`);
+  return params.length > 0 ? `/playlist.m3u?${params.join('&')}` : '/playlist.m3u';
+});
+
 const copyPlaylistUrl = async () => {
   if (typeof window === 'undefined') return;
   const baseUrl = getExternalBaseUrl(props.systemStatus);
-  const fullUrl = `${baseUrl}/playlist.m3u`;
+  const u = props.currentUser || 'Moi';
+  let fullUrl = `${baseUrl}/playlist.m3u`;
+  const params: string[] = [];
+  if (u && u !== 'Moi') params.push(`user=${encodeURIComponent(u)}`);
+  if (params.length > 0) fullUrl += `?${params.join('&')}`;
+
   try {
     await navigator.clipboard.writeText(fullUrl);
     copied.value = true;
@@ -84,7 +150,6 @@ const copyPlaylistUrl = async () => {
       copied.value = false;
     }, 2000);
   } catch {
-    // Fallback prompt
     window.prompt('URL de la playlist TV :', fullUrl);
   }
 };
@@ -151,9 +216,32 @@ const copyPlaylistUrl = async () => {
         <span class="clean-text">Nettoyage auto : Lun. 09h00</span>
       </button>
 
+      <!-- User Profile & Admin Switcher -->
+      <button
+        type="button"
+        class="btn-user-profile"
+        :class="{ 'is-admin': isAdmin }"
+        title="Changer de pseudo, mode admin ou identifiants HTTP"
+        @click="openUserModal"
+      >
+        <span class="user-pill-icon">{{ isAdmin ? '👑' : '👤' }}</span>
+        <span class="user-pill-name">{{ currentUser || 'Moi' }}</span>
+        <span v-if="isAdmin" class="user-pill-admin-tag">Admin</span>
+      </button>
+
+      <!-- TV Guide Button -->
+      <button
+        type="button"
+        class="btn-tv-guide"
+        title="Ouvrir le guide TV 2026 (Android TV, Apple TV, Kodi, Plex)"
+        @click="emit('open-tv-guide')"
+      >
+        📺 Tuto TV
+      </button>
+
       <!-- Playlist TV Button -->
       <div class="playlist-dropdown">
-        <a href="/playlist.m3u" download="peerflix.m3u" class="btn-playlist" title="Télécharger la playlist M3U pour Kodi/VLC">
+        <a :href="playlistDownloadUrl" download="peerflix.m3u" class="btn-playlist" title="Télécharger la playlist M3U pour Kodi/VLC">
           📺 Playlist TV (.m3u)
         </a>
         <button
@@ -164,6 +252,76 @@ const copyPlaylistUrl = async () => {
         >
           {{ copied ? '✓ Copié !' : '📋 Copier lien' }}
         </button>
+      </div>
+    </div>
+
+    <!-- User Profile & Settings Modal -->
+    <div v-if="showUserModal" class="user-modal-overlay" @click.self="showUserModal = false">
+      <div class="user-modal-card">
+        <div class="user-modal-header">
+          <h3>👤 Profil Utilisateur & Accès</h3>
+          <button type="button" class="btn-close-modal" @click="showUserModal = false">✕</button>
+        </div>
+        <div class="user-modal-body">
+          <div class="form-group">
+            <label for="username-input">Votre Pseudo :</label>
+            <div class="pseudo-input-wrapper">
+              <input
+                id="username-input"
+                v-model="newUserName"
+                type="text"
+                class="form-input"
+                placeholder="Votre pseudo..."
+                maxlength="25"
+              />
+              <button
+                type="button"
+                class="btn-reroll"
+                title="Générer un autre pseudo aléatoire sympa"
+                @click="handleRerollPseudo"
+              >
+                🎲 Nouveau
+              </button>
+            </div>
+            <span class="form-hint">
+              Attribué automatiquement pour votre appareil. Modifiable librement ! Vos torrents privés restent masqués pour les autres.
+            </span>
+          </div>
+
+          <div class="form-group admin-section">
+            <label class="checkbox-label">
+              <input
+                v-model="newIsAdmin"
+                type="checkbox"
+                class="form-checkbox"
+              />
+              <span>👑 Mode Administrateur (Tout voir & tout gérer)</span>
+            </label>
+            <span class="form-hint">
+              Permet de voir tous les torrents (y compris les torrents privés des autres) et forcer le nettoyage du disque.
+            </span>
+
+            <div v-if="newIsAdmin && !isAdmin" class="admin-password-box">
+              <label for="admin-pass-input">Mot de passe Administrateur :</label>
+              <input
+                id="admin-pass-input"
+                v-model="adminPasswordInput"
+                type="password"
+                class="form-input"
+                placeholder="Mot de passe (ADMIN_PASSWORD)..."
+                autocomplete="current-password"
+                @keyup.enter="saveUserSettings"
+              />
+              <span v-if="adminError" class="admin-error-msg">⚠️ {{ adminError }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="user-modal-footer">
+          <button type="button" class="btn-cancel" @click="showUserModal = false">Annuler</button>
+          <button type="button" class="btn-save" :disabled="isVerifyingAdmin" @click="saveUserSettings">
+            {{ isVerifyingAdmin ? 'Vérification...' : 'Enregistrer' }}
+          </button>
+        </div>
       </div>
     </div>
   </header>
@@ -378,6 +536,240 @@ const copyPlaylistUrl = async () => {
   padding: 0.05rem 0.35rem;
   font-size: 0.68rem;
   font-weight: 700;
+}
+
+.btn-user-profile {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 0.3rem 0.75rem;
+  color: #f1f5f9;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-user-profile:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.btn-user-profile.is-admin {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #fbbf24;
+}
+
+.user-pill-admin-tag {
+  background: #f59e0b;
+  color: #000;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 8px;
+  text-transform: uppercase;
+  margin-left: 0.2rem;
+}
+
+.btn-tv-guide {
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-tv-guide:hover {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38bdf8;
+}
+
+/* User Profile Modal Styles */
+.user-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(6px);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.user-modal-card {
+  background: #111522;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 480px;
+  overflow: hidden;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+}
+
+.user-modal-header {
+  padding: 1rem 1.25rem;
+  background: #151b2c;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.user-modal-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #f8fafc;
+}
+
+.btn-close-modal {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.user-modal-body {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form-group label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.form-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: #f59e0b;
+  cursor: pointer;
+}
+
+.form-input {
+  background: #090c14;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 7px;
+  padding: 0.5rem 0.75rem;
+  color: #f1f5f9;
+  font-size: 0.88rem;
+  outline: none;
+}
+
+.form-input:focus {
+  border-color: #38bdf8;
+}
+
+.form-hint {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.user-modal-footer {
+  padding: 0.85rem 1.25rem;
+  background: #151b2c;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.btn-cancel {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  padding: 0.45rem 1rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.btn-save {
+  background: #0284c7;
+  color: white;
+  border: none;
+  padding: 0.45rem 1.2rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-save:hover {
+  background: #0ea5e9;
+}
+
+.pseudo-input-wrapper {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.btn-reroll {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f8fafc;
+  padding: 0.45rem 0.75rem;
+  border-radius: 7px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.btn-reroll:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: #38bdf8;
+}
+
+.admin-password-box {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.admin-password-box label {
+  font-size: 0.8rem;
+  color: #fca5a5;
+  font-weight: 600;
+}
+
+.admin-error-msg {
+  font-size: 0.78rem;
+  color: #ef4444;
+  font-weight: 600;
 }
 
 @media (max-width: 768px) {

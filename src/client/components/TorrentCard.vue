@@ -10,10 +10,13 @@ defineProps<{
   torrent: TorrentDTO;
   systemStatus?: SystemStatusDTO | null;
   hideJunkFiles: boolean;
+  currentUser?: string;
+  isAdmin?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'toggle-pin', infoHash: string): void;
+  (e: 'toggle-visibility', infoHash: string, isPrivate: boolean): void;
   (e: 'pause', infoHash: string): void;
   (e: 'resume', infoHash: string): void;
   (e: 'delete', infoHash: string): void;
@@ -35,7 +38,10 @@ const isExpanded = ref(false);
     <!-- Card Header -->
     <TorrentCardHeader
       :torrent="torrent"
+      :current-user="currentUser"
+      :is-admin="isAdmin"
       @toggle-pin="emit('toggle-pin', $event)"
+      @toggle-visibility="(hash, priv) => emit('toggle-visibility', hash, priv)"
       @pause="emit('pause', $event)"
       @resume="emit('resume', $event)"
       @delete="emit('delete', $event)"

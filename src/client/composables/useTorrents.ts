@@ -1,7 +1,13 @@
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { io as ClientSocket, type Socket } from 'socket.io-client';
 import type { TorrentDTO, SystemStatusDTO, TorrentCategory, FileCategory } from '../../shared/types.js';
 import * as api from '../services/api.js';
+import {
+  getCurrentUser,
+  saveCurrentUser,
+  getIsAdmin,
+  saveIsAdmin
+} from '../utils/auth-url.js';
 
 export function formatBytes(bytes: number, decimals = 1): string {
   if (!bytes || bytes <= 0) return '0 o';
@@ -27,6 +33,20 @@ export function formatDuration(seconds: number): string {
   return `${s}s`;
 }
 
+export function formatTimeAgo(timestamp?: number): string {
+  if (!timestamp) return '';
+  const diffSec = Math.floor((Date.now() - timestamp) / 1000);
+  if (diffSec < 60) return "à l'instant";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `il y a ${diffMin}m`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `il y a ${diffHours}h`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return 'hier';
+  if (diffDays < 30) return `il y a ${diffDays}j`;
+  return new Date(timestamp).toLocaleDateString('fr-FR');
+}
+
 export function isJunkFile(name: string, category: FileCategory): boolean {
   if (category === 'info') return false; // Always keep NFOs accessible
   const lower = name.toLowerCase();
@@ -39,12 +59,64 @@ export function isJunkFile(name: string, category: FileCategory): boolean {
   return false;
 }
 
+const STORAGE_CAT_KEY = 'peerflix_selected_category';
+const STORAGE_SORT_KEY = 'peerflix_sort_by';
+const STORAGE_MY_TORRENTS_KEY = 'peerflix_only_my_torrents';
+
 export function useTorrents() {
   const torrents = ref<TorrentDTO[]>([]);
   const systemStatus = ref<SystemStatusDTO | null>(null);
   const searchQuery = ref<string>('');
-  const selectedCategory = ref<string>('all');
-  const sortBy = ref<'recent' | 'name' | 'size' | 'progress'>('recent');
+
+  // Persisted filters
+  const initialCategory = typeof localStorage !== 'undefined' ? (localStorage.getItem(STORAGE_CAT_KEY) || 'all') : 'all';
+  const selectedCategory = ref<string>(initialCategory);
+
+  const initialSort = typeof localStorage !== 'undefined'
+    ? ((localStorage.getItem(STORAGE_SORT_KEY) as any) || 'recent')
+    : 'recent';
+  const sortBy = ref<'recent' | 'name' | 'size' | 'progress'>(initialSort);
+
+  const initialOnlyMy = typeof localStorage !== 'undefined'
+    ? localStorage.getItem(STORAGE_MY_TORRENTS_KEY) === 'true'
+    : false;
+  const onlyMyTorrents = ref<boolean>(initialOnlyMy);
+
+  // User session
+  const currentUser = ref<string>(getCurrentUser());
+  const isAdmin = ref<boolean>(getIsAdmin());
+
+  // Watch and persist filters
+  watch(selectedCategory, (newCat) => {
+    try {
+      localStorage.setItem(STORAGE_CAT_KEY, newCat);
+    } catch {}
+  });
+
+  watch(sortBy, (newSort) => {
+    try {
+      localStorage.setItem(STORAGE_SORT_KEY, newSort);
+    } catch {}
+  });
+
+  watch(onlyMyTorrents, (newVal) => {
+    try {
+      localStorage.setItem(STORAGE_MY_TORRENTS_KEY, newVal ? 'true' : 'false');
+    } catch {}
+  });
+
+  const updateCurrentUser = (newUser: string) => {
+    currentUser.value = newUser.trim() || 'Moi';
+    saveCurrentUser(currentUser.value);
+    loadTorrents();
+  };
+
+  const updateIsAdmin = (val: boolean, token?: string) => {
+    isAdmin.value = val;
+    saveIsAdmin(val, token);
+    loadTorrents();
+  };
+
   const hideJunkFiles = ref<boolean>(true);
   const isLoading = ref<boolean>(false);
   const errorMessage = ref<string | null>(null);
@@ -52,7 +124,23 @@ export function useTorrents() {
   let socket: Socket | null = null;
 
   const filteredTorrents = computed(() => {
+    const userLower = currentUser.value.toLowerCase().trim();
+
     const list = torrents.value.filter((torrent) => {
+      // Privacy check: if torrent is private, only visible to owner or admin
+      if (torrent.isPrivate && !isAdmin.value) {
+        if (!torrent.addedBy || torrent.addedBy.toLowerCase().trim() !== userLower) {
+          return false;
+        }
+      }
+
+      // "My torrents only" filter
+      if (onlyMyTorrents.value) {
+        if (!torrent.addedBy || torrent.addedBy.toLowerCase().trim() !== userLower) {
+          return false;
+        }
+      }
+
       // Category filter
       if (selectedCategory.value !== 'all') {
         if (selectedCategory.value === 'archive_other') {
@@ -69,7 +157,8 @@ export function useTorrents() {
         const query = searchQuery.value.toLowerCase().trim();
         const matchesName = torrent.name.toLowerCase().includes(query);
         const matchesFile = torrent.files.some((f) => f.name.toLowerCase().includes(query));
-        if (!matchesName && !matchesFile) {
+        const matchesAuthor = torrent.addedBy?.toLowerCase().includes(query);
+        if (!matchesName && !matchesFile && !matchesAuthor) {
           return false;
         }
       }
@@ -249,18 +338,33 @@ export function useTorrents() {
     }
   };
 
-  const addTorrentByLink = async (link: string) => {
+  const addTorrentByLink = async (link: string, options?: { isPrivate?: boolean }) => {
     errorMessage.value = null;
-    const res = await api.addTorrent(link);
+    const res = await api.addTorrent(link, {
+      isPrivate: options?.isPrivate,
+      addedBy: currentUser.value
+    });
     await loadTorrents();
     return res.infoHash;
   };
 
-  const uploadFiles = async (files: FileList | File[]) => {
+  const uploadFiles = async (files: FileList | File[], options?: { isPrivate?: boolean }) => {
     errorMessage.value = null;
-    const res = await api.uploadTorrents(files);
+    const res = await api.uploadTorrents(files, {
+      isPrivate: options?.isPrivate,
+      addedBy: currentUser.value
+    });
     await loadTorrents();
     return res;
+  };
+
+  const toggleVisibility = async (infoHash: string, isPrivate: boolean) => {
+    const res = await api.toggleTorrentVisibility(infoHash, isPrivate);
+    const t = torrents.value.find((item) => item.infoHash === infoHash);
+    if (t) {
+      t.isPrivate = res.isPrivate;
+    }
+    return res.isPrivate;
   };
 
   const togglePin = async (infoHash: string) => {
@@ -339,6 +443,9 @@ export function useTorrents() {
     searchQuery,
     selectedCategory,
     sortBy,
+    onlyMyTorrents,
+    currentUser,
+    isAdmin,
     hideJunkFiles,
     isLoading,
     errorMessage,
@@ -348,6 +455,9 @@ export function useTorrents() {
     addTorrentByLink,
     uploadFiles,
     togglePin,
+    toggleVisibility,
+    updateCurrentUser,
+    updateIsAdmin,
     deleteTorrent,
     pauseTorrent,
     resumeTorrent,
