@@ -10,10 +10,26 @@
   [![Vue.js](https://img.shields.io/badge/Vue.js-3.x%20Composition%20API-4FC08D?logo=vue.js&logoColor=white)](https://vuejs.org/)
   [![Vite](https://img.shields.io/badge/Vite-6.x-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
   [![Docker](https://img.shields.io/badge/Docker-Multi--stage%20Slim-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
-  [![Tests](https://img.shields.io/badge/Tests-135%2F135%20Passing-brightgreen?logo=vitest&logoColor=white)](https://vitest.dev/)
+  [![Tests](https://img.shields.io/badge/Tests-151%2F151%20Passing-brightgreen?logo=vitest&logoColor=white)](https://vitest.dev/)
   [![FFmpeg](https://img.shields.io/badge/FFmpeg-Audio%20Remux%20Zero--GPU-007808?logo=ffmpeg&logoColor=white)](https://ffmpeg.org/)
   [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 </div>
+
+---
+
+## ⚖️ Avertissement Légal & Cadre Juridique (France)
+
+> [!IMPORTANT]
+> **Ce logiciel est un outil technique d'infrastructure et de transfert réseau fourni à des fins exclusives d'interopérabilité, d'expérimentation et de distribution de contenus libres de droits.**
+
+* **Respect de la Propriété Intellectuelle (Code de la propriété intellectuelle)** :
+  En France, le téléchargement, la reproduction, la représentation ou la mise à disposition d'œuvres protégées par le droit d'auteur (films, séries, musique, logiciels, jeux vidéo, livres numériques) sans l'autorisation préalable et expresse des titulaires de droits constitue un délit de contrefaçon sanctionné par les articles **L.335-2 et suivants du Code de la propriété intellectuelle** (peines pouvant aller jusqu'à 3 ans d'emprisonnement et 300 000 euros d'amende).
+* **Cadre Réglementaire & ARCOM** :
+  L'utilisation des protocoles d'échange pair-à-pair (Peer-to-Peer / BitTorrent) est régie en France par le Code de la propriété intellectuelle et surveillée par l'Autorité de régulation de la communication audiovisuelle et numérique (**ARCOM**, ex-HADOPI). L'utilisateur s'engage à respecter scrupuleusement la législation en vigueur relative aux droits d'auteur et droits voisins.
+* **Neutralité Technique du Logiciel** :
+  À l'instar d'un navigateur web ou d'un client de transfert de fichiers (HTTP/FTP), Peerflix Server est un protocole logiciel technologiquement neutre. Il est conçu pour la diffusion de distributions Linux (Ubuntu, Debian, Fedora), d'archives publiques, d'œuvres sous licences ouvertes (Creative Commons, domaine public) ou de médias personnels dont vous détenez légitimement les droits de copie et de diffusion.
+* **Exclusion de Responsabilité** :
+  L'auteur, les développeurs et les contributeurs de ce projet déclinent expressément toute responsabilité quant à l'usage illégal, frauduleux ou non conforme qui pourrait être fait de ce logiciel par des tiers. L'utilisateur final assume l'entière et exclusive responsabilité civile et pénale de ses actes et des données qu'il choisit de transférer, de relayer ou de visionner.
 
 ---
 
@@ -63,18 +79,32 @@ Cette nouvelle génération introduit une interface réactive par onglets en Vue
 * **Widget profil utilisateur** : Affiche votre avatar, ratio, volume upload/download, solde de points Zen et statut Freeleech.
 * **Ajout instantané** : Lance le téléchargement et le streaming sans avoir à manipuler de fichier `.torrent` local.
 
-### 📱 6. Multi-Écrans, VLC & Reverse Proxy
-* **Génération de flux VLC (.m3u)** : Ouvrez le flux directement dans VLC, MPV ou IINA.
-* **QR Code mobile instantané** : Scannez le QR code depuis votre smartphone ou tablette pour reprendre la lecture sur votre réseau local.
-* **Compatibilité Picture-in-Picture (PiP) et Google Cast**.
-* **Support HTTP Basic Auth** : Injection automatique des identifiants (`PUBLIC_AUTH_CREDENTIALS`) dans les URL M3U et QR codes lors d'un déploiement derrière Traefik, Nginx, Caddy ou NPM.
+### 📱 6. Multi-Écrans, TV Box & Playlist IPTV M3U (2026)
+* **Playlist IPTV globale `/playlist.m3u`** : Regroupement automatique normalisé par catégories (`Films`, `Séries TV`, `Musique`) avec titres d'épisodes propres (`tvg-name`).
+* **Guide TV interactif intégré** : Tutoriels pas à pas pour Android TV & Google TV (**TiviMate**, VLC), Apple TV (**IPTVX**), Kodi (**PVR IPTV Simple Client**) et Plex Media Server (via **Threadfin** / **xTeVe**).
+* **Génération de flux VLC (.m3u) & QR Code mobile** : Lecture immédiate sur smartphone, tablette ou lecteur multimédia local.
+* **Compatibilité 4K HEVC & Navigateurs modernes** : Détection matérielle directe (VA-API / FFmpeg sous Linux, Media Foundation sous Windows, VideoToolbox sous macOS) sans avertissement intempestif.
+* **Gestion automatique du Cast** : Détection de disponibilité du récepteur Chromecast / AirPlay avec masquage automatique du bouton si non supporté.
+* **Support Traefik & HTTP Basic Auth** : Compatibilité totale avec Traefik sans blocage 401 grâce à `PUBLIC_AUTH_CREDENTIALS` et `?auth=user:password`.
 
-### 🛡️ 7. Surveillance Disque & Nettoyage Automatique
+### 👥 7. Système Multi-Utilisateurs Transparent & Confidentialité
+* **Attribution automatique de pseudo** : Détection de l'appareil (`iPhone-Renard`, `PC-Win-Loup`, `Mac-Faucon`, etc.) ou tirage aléatoire d'un nom mémorable (`RenardMalin`, `PandaZen`) mémorisé localement sans aucun compte à créer. Bouton 🎲 de re-tirage en 1 clic.
+* **Filtre « Mes ajouts »** : Bouton d'accès rapide pour n'afficher que ses propres téléchargements.
+* **Torrents Privés (🔒)** : Possibilité de marquer un torrent comme privé pour le masquer complètement aux yeux des autres utilisateurs.
+* **Mode Administrateur sécurisé (`ADMIN_PASSWORD`)** : Verrouillé par mot de passe en variable d'environnement pour inspecter l'ensemble des torrents et forcer le nettoyage du serveur.
+
+### 🛡️ 8. Surveillance Disque & Nettoyage Automatique
 * **Moniteur d'espace disque en temps réel** : Analyse régulière de l'espace libre (`MIN_FREE_DISK_MB`) pour empêcher la saturation du disque système.
 * **Quota disque configurable** : Définissez un quota maximum en Go (`MAX_DISK_QUOTA_GB`).
 * **Purge automatique programmable** : Ordonnanceur hebdomadaire configurable pour supprimer les torrents expirés non épinglés.
 * **Purge manuelle en 1 clic** : Bouton dans l'interface avec confirmation et rapport d'espace libéré.
 * **Épinglage de torrents (Pin)** : Protège vos films et séries favoris contre toute suppression automatique.
+
+### 🎯 9. Libellés Adaptatifs Intelligents
+* Adaptation dynamique du bouton d'action selon le contenu :
+  - **Vidéos** : `▶ Lancer sur Peerflix (Streaming)`
+  - **Jeux / Applications / ISO** : `📥 Télécharger sur le serveur`
+  - **Audio / Musique** : `🎵 Ajouter & Écouter`
 
 ---
 
@@ -124,6 +154,9 @@ services:
       # Identifiants Basic Auth de secours pour flux VLC / QR codes (optionnel si reverse proxy actif)
       # - PUBLIC_AUTH_CREDENTIALS=admin:monmotdepasse
 
+      # Mot de passe administrateur pour déverrouiller la gestion globale (optionnel)
+      # - ADMIN_PASSWORD=votre_mot_de_passe_secret
+
       # Intégration C411 (Recherche native & streaming 1-clic)
       # - C411_API_KEY=votre_cle_api_c411
       # - C411_BASE_URL=https://c411.org
@@ -165,6 +198,7 @@ Ouvrez ensuite votre navigateur sur **[http://localhost:9000](http://localhost:9
 | `AUTO_CLEAN_DAY` | Jour de purge auto : `0` (Dim) à `6` (Sam) | `1` *(Lundi)* | `0` |
 | `AUTO_CLEAN_HOUR` | Heure de la purge auto : `0` à `23` | `9` *(09h00)* | `4` |
 | `AUTO_CLEAN_MINUTE` | Minute de la purge auto : `0` à `59` | `0` | `30` |
+| `ADMIN_PASSWORD` | Mot de passe de protection du Mode Administrateur | *admin / peerflix* | `mon_secret_admin` |
 | `PUBLIC_AUTH_CREDENTIALS` | Identifiants Basic Auth injectés dans les liens M3U / QR code | *Non défini* | `admin:supersecret` |
 | `C411_API_KEY` | Clé API C411 pour recherche et streaming en un clic | *Non défini* | `votre_passkey_c411` |
 | `C411_BASE_URL` | URL de l'instance C411 | `https://c411.org` | `https://c411.org` |
