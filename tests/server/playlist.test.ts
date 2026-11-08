@@ -89,13 +89,15 @@ describe('M3U Playlists (per-torrent and global TV playlist)', () => {
     const m3uText = res.text || (res.body ? res.body.toString('utf-8') : '');
     expect(m3uText).toContain('#EXTM3U');
 
-    // Torrent 1 media
-    expect(m3uText).toContain('#EXTGRP:Dune Part 2');
+    // Torrent 1 media (categorized as Films)
+    expect(m3uText).toContain('#EXTGRP:Films');
+    expect(m3uText).toContain('group-title="Films"');
     expect(m3uText).toContain('Dune2.1080p.mkv');
     expect(m3uText).toContain(`/torrents/${hash1}/files/0`);
 
-    // Torrent 2 media
-    expect(m3uText).toContain('#EXTGRP:Daft Punk Album');
+    // Torrent 2 media (categorized as Musique)
+    expect(m3uText).toContain('#EXTGRP:Musique');
+    expect(m3uText).toContain('group-title="Musique"');
     expect(m3uText).toContain('track01.flac');
     expect(m3uText).toContain(`/torrents/${hash2}/files/0`);
 
@@ -103,6 +105,12 @@ describe('M3U Playlists (per-torrent and global TV playlist)', () => {
     expect(m3uText).not.toContain('setup.exe');
     expect(m3uText).not.toContain('info.nfo');
     expect(m3uText).not.toContain('cover.jpg');
+
+    // Test category filtering via query params
+    const resFilms = await request(app).get('/playlist.m3u?category=films');
+    const textFilms = resFilms.text || (resFilms.body ? resFilms.body.toString('utf-8') : '');
+    expect(textFilms).toContain('Dune2.1080p.mkv');
+    expect(textFilms).not.toContain('track01.flac');
   });
 
   it('should generate M3U playlists using cached metadata when engine.ready is false (reboot fallback)', async () => {
@@ -142,7 +150,7 @@ describe('M3U Playlists (per-torrent and global TV playlist)', () => {
     const resGlobal = await request(app).get('/playlist.m3u');
     expect(resGlobal.status).toBe(200);
     const textGlobal = resGlobal.text || resGlobal.body.toString('utf-8');
-    expect(textGlobal).toContain('#EXTGRP:Oppenheimer 2023');
+    expect(textGlobal).toContain('#EXTGRP:Films');
     expect(textGlobal).toContain('Oppenheimer.2160p.mkv');
     expect(textGlobal).toContain(`/torrents/${unreadyHash}/files/0`);
   });

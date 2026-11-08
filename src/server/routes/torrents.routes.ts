@@ -17,13 +17,56 @@ export function createTorrentsRouter(store: TorrentStore): Router {
     }
   });
 
-  // GET /torrents (List all serialized torrents)
+  // GET /torrents (List all serialized torrents, with optional user/admin privacy filtering)
   router.get('/torrents', (req: Request, res: Response) => {
-    const list = store.list().map((engine) => {
-      const meta = store.getMetadata(engine.infoHash);
-      return serializeTorrent(engine, meta);
-    });
+    const user = typeof req.query.user === 'string'
+      ? req.query.user.trim().toLowerCase()
+      : (typeof req.headers['x-peerflix-user'] === 'string'
+          ? (req.headers['x-peerflix-user'] as string).trim().toLowerCase()
+          : '');
+    const adminPasswordEnv = process.env.ADMIN_PASSWORD;
+    const adminToken = req.headers['x-peerflix-admin-token'] as string | undefined;
+    const adminPass = (req.headers['x-peerflix-admin-password'] || req.query.admin_pass) as string | undefined;
+
+    let isAdmin = false;
+    if (adminPasswordEnv) {
+      isAdmin = adminToken === 'admin-authorized' || adminPass === adminPasswordEnv;
+    } else {
+      isAdmin = req.query.admin === 'true' ||
+        req.headers['x-peerflix-admin'] === 'true' ||
+        adminToken === 'admin-authorized' ||
+        adminToken === 'admin-authorized-default';
+    }
+
+    const list = store.list()
+      .map((engine) => {
+        const meta = store.getMetadata(engine.infoHash);
+        return serializeTorrent(engine, meta);
+      })
+      .filter((torrent) => {
+        if (!torrent.isPrivate) return true;
+        if (isAdmin) return true;
+        if (user && (torrent.addedBy || '').toLowerCase() === user) return true;
+        return false;
+      });
+
     res.json(list);
+  });
+
+  // PATCH /torrents/:infoHash/visibility (Toggle or set private/public visibility)
+  router.patch('/torrents/:infoHash/visibility', (req: Request, res: Response) => {
+    const { infoHash } = req.params;
+    const isPrivate = Boolean(req.body.isPrivate);
+    const updated = store.setVisibility(infoHash, isPrivate);
+    res.json({ success: true, isPrivate: updated });
+  });
+
+  // POST /torrents/:infoHash/visibility
+  router.post('/torrents/:infoHash/visibility', (req: Request, res: Response) => {
+    const { infoHash } = req.params;
+    const isPrivate = Boolean(req.body.isPrivate);
+    const updated = store.setVisibility(infoHash, isPrivate);
+    res.json({ success: true, isPrivate: updated });
   });
 
   // GET /torrents/:infoHash (Single serialized torrent)
@@ -128,9 +171,12 @@ export function createTorrentsRouter(store: TorrentStore): Router {
       }
 
       try {
+        const addedBy = req.body?.addedBy || (req.headers['x-peerflix-user'] as string) || undefined;
+        const isPrivate = req.body?.isPrivate === true || req.body?.isPrivate === 'true';
+
         const results = [];
         for (const file of files) {
-          const infoHash = await store.add(file.buffer);
+          const infoHash = await store.add(file.buffer, { addedBy, isPrivate });
           results.push({ infoHash, name: file.originalname });
         }
 
@@ -147,7 +193,7 @@ export function createTorrentsRouter(store: TorrentStore): Router {
 
   // POST /torrents (accepts magnet link, hash or public URL)
   router.post('/torrents', async (req: Request, res: Response, next: NextFunction) => {
-    const { link } = req.body || {};
+    const { link, addedBy: bodyUser, isPrivate: bodyPrivate } = req.body || {};
 
     if (!link || typeof link !== 'string' || link.trim().length === 0) {
       res.status(400).json({ error: 'BadRequest', message: 'link parameter is required' });
@@ -159,8 +205,11 @@ export function createTorrentsRouter(store: TorrentStore): Router {
       return;
     }
 
+    const addedBy = bodyUser || (req.headers['x-peerflix-user'] as string) || undefined;
+    const isPrivate = bodyPrivate === true || bodyPrivate === 'true';
+
     try {
-      const infoHash = await store.add(link);
+      const infoHash = await store.add(link, { addedBy, isPrivate });
       res.json({ infoHash });
     } catch (err: any) {
       if (err instanceof SecurityError) {

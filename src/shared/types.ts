@@ -81,6 +81,8 @@ export interface TorrentDTO {
   progress: number[];
   stats: TorrentStatsDTO;
   files: TorrentFileDTO[];
+  addedBy?: string;
+  isPrivate?: boolean;
 }
 
 export interface VideoStreamDTO {

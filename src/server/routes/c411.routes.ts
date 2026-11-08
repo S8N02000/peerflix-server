@@ -59,14 +59,17 @@ export function createC411Router(store: TorrentStore, client = new C411Client())
   // POST /c411/add
   router.post('/c411/add', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.body;
+      const { id, addedBy: bodyUser, isPrivate: bodyPrivate } = req.body;
       if (!id || typeof id !== 'string') {
         res.status(400).json({ error: 'BadRequest', message: 'Missing or invalid result id' });
         return;
       }
 
+      const addedBy = bodyUser || (req.headers['x-peerflix-user'] as string) || undefined;
+      const isPrivate = bodyPrivate === true || bodyPrivate === 'true';
+
       const buffer = await client.fetchTorrentBufferById(id);
-      const infoHash = await store.add(buffer);
+      const infoHash = await store.add(buffer, { addedBy, isPrivate });
 
       res.status(200).json({ infoHash, message: 'Torrent successfully added to Peerflix' });
     } catch (err: any) {

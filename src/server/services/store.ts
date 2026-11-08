@@ -30,6 +30,8 @@ export interface StoredTorrentMetadata {
   isFullyDownloaded?: boolean;
   magnet?: string;
   files?: CachedFileMetadata[];
+  addedBy?: string;
+  isPrivate?: boolean;
 }
 
 export interface StoreOptions {
@@ -281,7 +283,10 @@ export class TorrentStore extends EventEmitter {
     }
   }
 
-  public async add(input: string | Buffer): Promise<string> {
+  public async add(
+    input: string | Buffer,
+    options?: { addedBy?: string; isPrivate?: boolean }
+  ): Promise<string> {
     const { parsed, source } = await parseTorrentInput(input);
     const infoHash = parsed.infoHash;
 
@@ -295,7 +300,9 @@ export class TorrentStore extends EventEmitter {
       length: parsed.length,
       addedAt: Date.now(),
       pinned: false,
-      magnet: typeof source === 'string' && source.startsWith('magnet:') ? source : undefined
+      magnet: typeof source === 'string' && source.startsWith('magnet:') ? source : undefined,
+      addedBy: options?.addedBy?.trim() || undefined,
+      isPrivate: options?.isPrivate ? true : false
     };
 
     if (parsed.files && parsed.files.length > 0) {
@@ -351,6 +358,16 @@ export class TorrentStore extends EventEmitter {
     meta.pinned = !meta.pinned;
     this.save();
     return meta.pinned;
+  }
+
+  public setVisibility(infoHash: string, isPrivate: boolean): boolean {
+    const meta = this.metadata.get(infoHash);
+    if (!meta) {
+      return false;
+    }
+    meta.isPrivate = isPrivate;
+    this.save();
+    return meta.isPrivate;
   }
 
   public async remove(infoHash: string, deleteFiles = true): Promise<void> {

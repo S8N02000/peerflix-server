@@ -254,6 +254,8 @@ export function serializeTorrent(
     downloadedPercentage,
     progress: [stats.progress],
     stats,
-    files: filesDTO
+    files: filesDTO,
+    addedBy: metadata?.addedBy,
+    isPrivate: Boolean(metadata?.isPrivate)
   };
 }

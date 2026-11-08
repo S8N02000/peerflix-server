@@ -25,11 +25,31 @@ export function getAuthenticatedBaseUrl(req: Request): string {
     host = req.get('host') || 'localhost:9000';
   }
 
-  // 3. Extract credentials (Basic Auth header or fallback environment variable)
+  // 3. Extract credentials (query param, Basic Auth header, or environment variables)
   let credentials = '';
+  const encodePart = (str: string) =>
+    encodeURIComponent(str).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+
+  const queryAuth = typeof req.query?.auth === 'string' ? req.query.auth.trim() : '';
   const authHeader = req.headers.authorization;
 
-  if (authHeader && authHeader.startsWith('Basic ')) {
+  if (queryAuth) {
+    if (queryAuth.includes(':')) {
+      const colonIdx = queryAuth.indexOf(':');
+      credentials = `${encodePart(queryAuth.slice(0, colonIdx))}:${encodePart(queryAuth.slice(colonIdx + 1))}`;
+    } else {
+      // Possible base64
+      try {
+        const decoded = Buffer.from(queryAuth, 'base64').toString('utf-8');
+        if (decoded.includes(':')) {
+          const colonIdx = decoded.indexOf(':');
+          credentials = `${encodePart(decoded.slice(0, colonIdx))}:${encodePart(decoded.slice(colonIdx + 1))}`;
+        }
+      } catch {}
+    }
+  }
+
+  if (!credentials && authHeader && authHeader.startsWith('Basic ')) {
     try {
       const b64 = authHeader.slice(6).trim();
       const decoded = Buffer.from(b64, 'base64').toString('utf-8');
@@ -37,19 +57,23 @@ export function getAuthenticatedBaseUrl(req: Request): string {
       if (colonIdx !== -1) {
         const user = decoded.slice(0, colonIdx);
         const pass = decoded.slice(colonIdx + 1);
-        const encodePart = (str: string) => encodeURIComponent(str).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
         credentials = `${encodePart(user)}:${encodePart(pass)}`;
       }
     } catch {
       // Ignore decoding failure
     }
-  } else if (process.env.PUBLIC_AUTH_CREDENTIALS) {
-    const raw = process.env.PUBLIC_AUTH_CREDENTIALS.trim();
-    const colonIdx = raw.indexOf(':');
-    if (colonIdx !== -1) {
-      const user = raw.slice(0, colonIdx);
-      const pass = raw.slice(colonIdx + 1);
-      const encodePart = (str: string) => encodeURIComponent(str).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  }
+
+  if (!credentials) {
+    const rawEnv = process.env.PUBLIC_AUTH_CREDENTIALS || process.env.BASIC_AUTH;
+    if (rawEnv && rawEnv.includes(':')) {
+      const colonIdx = rawEnv.indexOf(':');
+      const user = rawEnv.slice(0, colonIdx).trim();
+      const pass = rawEnv.slice(colonIdx + 1).trim();
+      credentials = `${encodePart(user)}:${encodePart(pass)}`;
+    } else if (process.env.HTTP_AUTH_USER && process.env.HTTP_AUTH_PASSWORD) {
+      const user = process.env.HTTP_AUTH_USER.trim();
+      const pass = process.env.HTTP_AUTH_PASSWORD.trim();
       credentials = `${encodePart(user)}:${encodePart(pass)}`;
     }
   }
