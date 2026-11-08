@@ -92,13 +92,13 @@ describe('M3U Playlists (per-torrent and global TV playlist)', () => {
     // Torrent 1 media (categorized as Films)
     expect(m3uText).toContain('#EXTGRP:Films');
     expect(m3uText).toContain('group-title="Films"');
-    expect(m3uText).toContain('Dune2.1080p.mkv');
+    expect(m3uText).toContain('Dune Part 2');
     expect(m3uText).toContain(`/torrents/${hash1}/files/0`);
 
     // Torrent 2 media (categorized as Musique)
     expect(m3uText).toContain('#EXTGRP:Musique');
     expect(m3uText).toContain('group-title="Musique"');
-    expect(m3uText).toContain('track01.flac');
+    expect(m3uText).toContain('track01');
     expect(m3uText).toContain(`/torrents/${hash2}/files/0`);
 
     // Non-media must be excluded
@@ -109,8 +109,8 @@ describe('M3U Playlists (per-torrent and global TV playlist)', () => {
     // Test category filtering via query params
     const resFilms = await request(app).get('/playlist.m3u?category=films');
     const textFilms = resFilms.text || (resFilms.body ? resFilms.body.toString('utf-8') : '');
-    expect(textFilms).toContain('Dune2.1080p.mkv');
-    expect(textFilms).not.toContain('track01.flac');
+    expect(textFilms).toContain('Dune Part 2');
+    expect(textFilms).not.toContain('track01');
   });
 
   it('should generate M3U playlists using cached metadata when engine.ready is false (reboot fallback)', async () => {
@@ -151,7 +151,63 @@ describe('M3U Playlists (per-torrent and global TV playlist)', () => {
     expect(resGlobal.status).toBe(200);
     const textGlobal = resGlobal.text || resGlobal.body.toString('utf-8');
     expect(textGlobal).toContain('#EXTGRP:Films');
-    expect(textGlobal).toContain('Oppenheimer.2160p.mkv');
+    expect(textGlobal).toContain('Oppenheimer 2023');
     expect(textGlobal).toContain(`/torrents/${unreadyHash}/files/0`);
+  });
+
+  it('should intelligently group TV series by show and season with clean titles and VOD attributes', async () => {
+    const seriesHash = '4444444444444444444444444444444444444444';
+    const seriesEngine: any = {
+      infoHash: seriesHash,
+      ready: true,
+      torrent: { name: 'Made.in.Abyss.S01.VOSTFR.1080p.BluRay-FRiTCHi571', length: 10000 },
+      files: [
+        { name: 'Made.in.Abyss.S01E01.VOSTFR.1080p.mkv', path: 'Made.in.Abyss.S01E01.VOSTFR.1080p.mkv', length: 5000 },
+        { name: 'Made.in.Abyss.S01E02.VOSTFR.1080p.mkv', path: 'Made.in.Abyss.S01E02.VOSTFR.1080p.mkv', length: 5000 }
+      ],
+      swarm: { wires: [], downloadSpeed: () => 0 }
+    };
+
+    (store as any).torrents.set(seriesHash, seriesEngine);
+    (store as any).metadata.set(seriesHash, {
+      infoHash: seriesHash,
+      name: 'Made.in.Abyss.S01.VOSTFR.1080p.BluRay-FRiTCHi571',
+      addedAt: 4,
+      pinned: false
+    });
+
+    const res = await request(app).get('/playlist.m3u');
+    expect(res.status).toBe(200);
+    const m3u = res.text || (res.body ? res.body.toString('utf-8') : '');
+
+    // Check VOD header
+    expect(m3u).toContain('#EXT-X-PLAYLIST-TYPE:VOD');
+
+    // Check show and season grouping
+    expect(m3u).toContain('group-title="Made in Abyss - S01"');
+    expect(m3u).toContain('#EXTGRP:Made in Abyss - S01');
+
+    // Check clean titles
+    expect(m3u).toContain('tvg-name="Made in Abyss - S01E01"');
+    expect(m3u).toContain('tvg-name="Made in Abyss - S01E02"');
+
+    // Check VOD metadata attributes
+    expect(m3u).toContain('series="Made in Abyss"');
+    expect(m3u).toContain('season="1"');
+    expect(m3u).toContain('episode="1"');
+    expect(m3u).toContain('episode="2"');
+
+    // Test ?grouping=category fallback
+    const resCat = await request(app).get('/playlist.m3u?grouping=category');
+    expect(resCat.status).toBe(200);
+    const textCat = resCat.text || (resCat.body ? resCat.body.toString('utf-8') : '');
+    expect(textCat).toContain('group-title="Séries TV"');
+
+    // Test ?category=series filter
+    const resSeries = await request(app).get('/playlist.m3u?category=series');
+    expect(resSeries.status).toBe(200);
+    const textSeries = resSeries.text || (resSeries.body ? resSeries.body.toString('utf-8') : '');
+    expect(textSeries).toContain('Made in Abyss');
+    expect(textSeries).not.toContain('Dune Part 2');
   });
 });

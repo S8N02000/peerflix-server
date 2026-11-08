@@ -5,6 +5,7 @@ import { defaultScheduler, type AutoCleanScheduler } from '../services/scheduler
 import type { SystemStatusDTO } from '../../shared/types.js';
 import { classifyFile } from '../services/classifier.js';
 import { getAuthenticatedBaseUrl } from '../utils/auth-url.js';
+import { buildM3UEntry } from '../utils/m3u-helper.js';
 
 export function createSystemRouter(
   store: TorrentStore,
@@ -79,10 +80,12 @@ export function createSystemRouter(
     const baseUrl = getAuthenticatedBaseUrl(req);
     const filterUser = typeof req.query.user === 'string' ? req.query.user.trim().toLowerCase() : '';
     const filterCat = typeof req.query.category === 'string' ? req.query.category.trim().toLowerCase() : '';
+    const groupingParam = typeof req.query.grouping === 'string' ? req.query.grouping.trim().toLowerCase() : 'series';
+    const groupingMode: 'series' | 'category' = groupingParam === 'category' ? 'category' : 'series';
     const isAdmin = req.query.admin === 'true';
     const onlyUser = req.query.onlyUser === 'true';
 
-    let m3u = '#EXTM3U\n';
+    let m3u = '#EXTM3U\n#EXT-X-PLAYLIST-TYPE:VOD\n';
 
     for (const engine of store.list()) {
       const meta = store.getMetadata(engine.infoHash);
@@ -119,42 +122,26 @@ export function createSystemRouter(
           continue; // Skip non-media files (exe, zip, iso, etc.)
         }
 
-        // Determine IPTV Category: Films, Séries TV, Musique
-        let groupTitle = 'Films';
-        if (fileCat === 'audio' || meta?.category === 'audio') {
-          groupTitle = 'Musique';
-        } else {
-          const combined = `${torrentName} ${filePath}`.toLowerCase();
-          const isSeriesPattern =
-            /s\d+e\d+/i.test(combined) ||
-            /saison\s*\d+/i.test(combined) ||
-            /season\s*\d+/i.test(combined) ||
-            /\b(e|ep)\d{1,3}\b/i.test(file.name || '');
-
-          if (isSeriesPattern || videoFilesCount > 1) {
-            groupTitle = 'Séries TV';
-          }
-        }
+        const entry = buildM3UEntry({
+          torrentName,
+          filePath,
+          fileName: file.name || 'Piste',
+          fileIndex: index,
+          engineInfoHash: engine.infoHash,
+          baseUrl,
+          torrentCategory: meta?.category,
+          videoFilesCountInTorrent: videoFilesCount,
+          groupingMode
+        });
 
         // Category filter if requested
         if (filterCat) {
-          if (filterCat === 'films' && groupTitle !== 'Films') continue;
-          if ((filterCat === 'series' || filterCat === 'series tv') && groupTitle !== 'Séries TV') continue;
-          if (filterCat === 'music' && groupTitle !== 'Musique') continue;
+          if (filterCat === 'films' && (entry.isSeries || entry.isAudio)) continue;
+          if ((filterCat === 'series' || filterCat === 'series tv') && !entry.isSeries) continue;
+          if (filterCat === 'music' && !entry.isAudio) continue;
         }
 
-        // Clean display name for TV Guide / Player
-        let cleanName = (file.name || 'Piste').replace(/[\r\n]+/g, ' ').trim();
-        if (groupTitle === 'Séries TV' && !cleanName.toLowerCase().includes(torrentName.toLowerCase())) {
-          // Add show name prefix for series if not already in filename
-          const cleanShow = torrentName.replace(/\.S\d+.*$/i, '').replace(/[-._]/g, ' ').trim();
-          cleanName = `${cleanShow} - ${cleanName}`;
-        }
-
-        const streamUrl = `${baseUrl}/torrents/${engine.infoHash}/files/${index}`;
-        m3u += `#EXTINF:-1 group-title="${groupTitle}" tvg-name="${cleanName}",${cleanName}\n`;
-        m3u += `#EXTGRP:${groupTitle}\n`;
-        m3u += `${streamUrl}\n`;
+        m3u += entry.rawM3uSnippet;
       }
     }
 

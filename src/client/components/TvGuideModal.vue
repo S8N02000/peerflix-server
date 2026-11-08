@@ -13,7 +13,7 @@ const emit = defineEmits<{
   (e: 'close'): void;
 }>();
 
-const activeTab = ref<'android' | 'apple' | 'kodi' | 'plex'>('android');
+const activeTab = ref<'kodi' | 'vlc' | 'android' | 'apple' | 'plex'>('kodi');
 const copied = ref(false);
 
 const userName = computed(() => props.currentUser || getCurrentUser());
@@ -103,10 +103,26 @@ onUnmounted(() => {
         <button
           type="button"
           class="tv-tab-btn"
+          :class="{ active: activeTab === 'kodi' }"
+          @click="activeTab = 'kodi'"
+        >
+          🏆 Kodi (Recommandé #1)
+        </button>
+        <button
+          type="button"
+          class="tv-tab-btn"
+          :class="{ active: activeTab === 'vlc' }"
+          @click="activeTab = 'vlc'"
+        >
+          🟠 VLC (PC / Mac / Mobile / TV)
+        </button>
+        <button
+          type="button"
+          class="tv-tab-btn"
           :class="{ active: activeTab === 'android' }"
           @click="activeTab = 'android'"
         >
-          🤖 Android TV & Google TV
+          🤖 Android TV (TiviMate)
         </button>
         <button
           type="button"
@@ -115,14 +131,6 @@ onUnmounted(() => {
           @click="activeTab = 'apple'"
         >
           🍏 Apple TV (tvOS)
-        </button>
-        <button
-          type="button"
-          class="tv-tab-btn"
-          :class="{ active: activeTab === 'kodi' }"
-          @click="activeTab = 'kodi'"
-        >
-          📦 Kodi (IPTV Simple)
         </button>
         <button
           type="button"
@@ -136,13 +144,124 @@ onUnmounted(() => {
 
       <!-- Body / Guide Content -->
       <div class="tv-body">
-        <!-- TAB 1: ANDROID TV / GOOGLE TV -->
+        <!-- TAB 1: KODI (RECOMMANDATION N°1) -->
+        <div v-show="activeTab === 'kodi'" class="guide-pane">
+          <div class="guide-hero">
+            <div class="guide-tag">Recommandation N°1 • Media-Center Ultime</div>
+            <h3>Kodi avec PVR IPTV Simple Client (Guide complet de A à Z)</h3>
+            <p>
+              Kodi est le lecteur multimédia de référence le plus puissant et le plus stable. Grâce à l'extension officielle <strong>PVR IPTV Simple Client</strong> configurée avec <strong>actualisation répétée toutes les minutes</strong>, tout nouveau film ou épisode ajouté sur Peerflix apparaît sur votre TV en 60 secondes en arrière-plan sans redémarrer !
+            </p>
+          </div>
+
+          <ol class="steps-list">
+            <li>
+              <strong>1. Télécharger & Installer Kodi</strong>
+              <div class="step-desc">
+                Kodi est 100% gratuit et sans publicité. Installez-le sur votre appareil :
+                <br />• <strong>Android TV / Google TV / Shield TV</strong> : Depuis le <em>Google Play Store</em>.
+                <br />• <strong>Amazon Fire TV Stick</strong> : Via l'application <em>Downloader</em> ou sideload de l'APK officiel kodi.tv.
+                <br />• <strong>PC / Linux / Mac</strong> : Téléchargeable sur <em>kodi.tv</em> (ou <code>sudo apt install kodi</code> sur Ubuntu/Pop!_OS/Debian).
+              </div>
+            </li>
+
+            <li>
+              <strong>2. Installer l'extension « PVR IPTV Simple Client »</strong>
+              <div class="step-desc">
+                Depuis l'écran d'accueil de Kodi :
+                <br />• Cliquez sur la roue crantée <strong>Paramètres</strong> ⚙️ (en haut à gauche), puis sur <strong>Extensions (Add-ons)</strong>.
+                <br />• Cliquez sur <strong>Installer d'un dépôt (Install from repository)</strong> → <strong>Kodi Add-on repository</strong>.
+                <br />• Ouvrez la catégorie <strong>Clients PVR (PVR clients)</strong>.
+                <br />• Cliquez sur <strong>PVR IPTV Simple Client</strong> puis sur le bouton <strong>Installer (Install)</strong> en bas à droite (validez l'installation des dépendances).
+                <br /><em>(Sur certaines versions, l'extension est préinstallée dans « Mes extensions → Clients PVR » : vérifiez simplement qu'elle est bien activée).</em>
+              </div>
+            </li>
+
+            <li>
+              <strong>3. Configurer l'URL de la Playlist Peerflix</strong>
+              <div class="step-desc">
+                • Sur <strong>PVR IPTV Simple Client</strong>, faites un clic droit (souris) ou un <strong>appui long</strong> (télécommande TV) pour ouvrir le menu contextuel, puis cliquez sur <strong>Configurer (Configure)</strong>.
+                <br />• Dans l'onglet <strong>Général (General)</strong> :
+                <br />&nbsp;&nbsp;- <em>Emplacement (Location)</em> : Choisissez <strong>URL distante (Internet)</strong>.
+                <br />&nbsp;&nbsp;- <em>URL de la liste de lecture M3U</em> : Collez votre lien M3U ci-dessus (copié en 1 clic grâce au bouton Copier).
+              </div>
+            </li>
+
+            <li>
+              <strong>4. ⚡ Crucial : Activer l'actualisation automatique toutes les 1 minute</strong>
+              <div class="step-desc">
+                Toujours dans l'onglet <strong>Général (General)</strong> de la configuration de l'add-on :
+                <br />• Définissez <strong>Mode d'actualisation automatique (Auto refresh mode)</strong> sur <strong>Actualisation répétée (Repeated refresh)</strong>.
+                <br />• Définissez <strong>Intervalle d'actualisation (Refresh interval)</strong> sur <strong>1</strong> (minute).
+                <br />👉 <em>Kodi interrogera ainsi le serveur Peerflix toutes les 60 secondes en tâche de fond : chaque torrent ou épisode complété est synchronisé instantanément !</em>
+              </div>
+            </li>
+
+            <li>
+              <strong>5. Valider et Découvrir vos Médias</strong>
+              <div class="step-desc">
+                • Cliquez sur le bouton <strong>OK</strong> pour enregistrer la configuration et activez l'extension si Kodi vous le demande.
+                <br />• Revenez sur l'écran d'accueil de Kodi et cliquez sur la tuile <strong>TV</strong> (ou Direct / Vidéos).
+                <br />• Tous vos films et séries s'affichent ordonnés par groupes hiérarchiques (<code>Films</code>, <code>Série - Nom - S01</code>, <code>Musique</code>...) avec reprise de lecture, choix des pistes audio et sous-titres français intégrés.
+              </div>
+            </li>
+          </ol>
+
+          <div class="guide-alt-box">
+            💡 <strong>Astuce mise à jour immédiate :</strong> Pour forcer le rechargement immédiat sans attendre la prochaine minute : <em>Paramètres ⚙️ → PVR et Direct → Général → Vider les données (Clear data)</em>.
+          </div>
+        </div>
+
+        <!-- TAB 2: VLC & LECTEURS RÉSEAU -->
+        <div v-show="activeTab === 'vlc'" class="guide-pane">
+          <div class="guide-hero">
+            <div class="guide-tag">Simple, Universel & Gratuit</div>
+            <h3>VLC Media Player (PC, Mac, Linux, Android, iOS, TV)</h3>
+            <p>
+              VLC est le lecteur le plus tout-terrain. Il décode nativement tous les formats vidéo et audio (MKV, AV1, HEVC 10-bit, DTS, TrueHD) avec sous-titres automatiques et zéro configuration compliquée.
+            </p>
+          </div>
+
+          <ol class="steps-list">
+            <li>
+              <strong>1. Sur Ordinateur (Windows, Mac, Linux)</strong>
+              <div class="step-desc">
+                • Ouvrez VLC, puis appuyez sur <strong>Ctrl+N</strong> (ou Cmd+N sur Mac) / menu <em>Média → Ouvrir un flux réseau</em>.
+                <br />• Collez l'URL de votre playlist M3U ci-dessus et cliquez sur <strong>Lire</strong>.
+                <br />• Appuyez sur <strong>Ctrl+L</strong> (ou Cmd+L) pour afficher la liste de lecture : tous vos dossiers Films et Séries sont rangés hiérarchiquement.
+              </div>
+            </li>
+
+            <li>
+              <strong>2. Sur Smartphone ou Tablette (Android / iPhone / iPad)</strong>
+              <div class="step-desc">
+                • Installez l'application officielle <strong>VLC</strong> (Google Play Store ou App Store).
+                <br />• Rendez-vous dans l'onglet <strong>Plus</strong> (ou Réseau) → <strong>Nouveau flux réseau</strong>.
+                <br />• Collez le lien M3U et lancez : vos médias se synchronisent immédiatement.
+              </div>
+            </li>
+
+            <li>
+              <strong>3. Sur Smart TV ou Box Android TV</strong>
+              <div class="step-desc">
+                • Téléchargez <strong>VLC pour Android TV</strong> depuis le Play Store de votre télévision.
+                <br />• Ouvrez l'application, descendez sur <strong>Flux réseau</strong> et collez le lien M3U.
+              </div>
+            </li>
+          </ol>
+
+          <div class="guide-alt-box">
+            ⚡ <strong>Sous-titres & Pistes Audio :</strong> VLC sélectionne automatiquement les pistes audio en français et les pistes de sous-titres intégrées à vos vidéos Peerflix.
+          </div>
+        </div>
+
+        <!-- TAB 3: ANDROID TV / GOOGLE TV -->
         <div v-show="activeTab === 'android'" class="guide-pane">
           <div class="guide-hero">
-            <div class="guide-tag">Recommandation n°1 en 2026</div>
-            <h3>TiviMate IPTV Player (Le roi absolu sur Android TV)</h3>
+            <div class="guide-tag">Alternative IPTV Box TV</div>
+            <h3>TiviMate & Applications IPTV (Android TV / Fire TV)</h3>
             <p>
-              TiviMate offre une interface digne des meilleures box TV du marché, avec zapping instantané, reprise de lecture et rangement automatique de vos films et séries par catégories.
+              Si vous préférez une interface de style décodeur TV traditionnel, TiviMate et IPTV Smarters prennent en charge la playlist M3U avec affichage des jaquettes.
             </p>
           </div>
 
@@ -154,23 +273,23 @@ onUnmounted(() => {
               <strong>2. Ajouter une Playlist</strong> : Rendez-vous dans <em>Paramètres → Playlists → Ajouter une playlist → Playlist M3U</em>.
             </li>
             <li>
-              <strong>3. Coller le lien M3U ci-dessus</strong> (ou utilisez l'application <em>Android TV Remote</em> sur smartphone pour coller l'URL directement sans taper à la télécommande).
+              <strong>3. Coller le lien M3U ci-dessus</strong> (utilisez l'application <em>Android TV Remote</em> sur smartphone pour coller l'URL directement sans taper à la télécommande).
             </li>
             <li>
-              <strong>4. Profitez !</strong> Vos fichiers sont automatiquement classés dans les dossiers <strong>Films</strong>, <strong>Séries TV</strong> et <strong>Musique</strong>.
+              <strong>4. Actualisation</strong> : Configurez la mise à jour automatique de la playlist au démarrage de l'application dans les réglages de TiviMate.
             </li>
           </ol>
 
           <div class="guide-alt-box">
-            <strong>Alternative gratuite :</strong> <em>IPTV Smarters Pro</em> ou <em>VLC pour Android TV</em> (dans VLC TV, allez dans <em>Flux Réseau</em> et collez l'URL).
+            <strong>Alternative gratuite :</strong> <em>IPTV Smarters Pro</em> ou <em>VLC pour Android TV</em>.
           </div>
         </div>
 
-        <!-- TAB 2: APPLE TV (tvOS) -->
+        <!-- TAB 4: APPLE TV (tvOS) -->
         <div v-show="activeTab === 'apple'" class="guide-pane">
           <div class="guide-hero">
             <div class="guide-tag">Recommandation n°1 sur Apple TV</div>
-            <h3>IPTVX (L'expérience Netflix sur tvOS)</h3>
+            <h3>IPTVX & VLC (tvOS)</h3>
             <p>
               IPTVX transforme votre playlist Peerflix en une véritable application de streaming moderne avec affiches haute définition, résumés et synchronisation iCloud.
             </p>
@@ -178,7 +297,7 @@ onUnmounted(() => {
 
           <ol class="steps-list">
             <li>
-              <strong>1. Télécharger IPTVX</strong> depuis l'App Store de votre Apple TV.
+              <strong>1. Télécharger IPTVX (ou VLC)</strong> depuis l'App Store de votre Apple TV.
             </li>
             <li>
               <strong>2. Ajouter une source</strong> : Choisissez <em>M3U Playlist</em>.
@@ -187,7 +306,7 @@ onUnmounted(() => {
               <strong>3. Renseigner l'URL M3U</strong> ci-dessus via AirPlay ou la télécommande iPhone.
             </li>
             <li>
-              <strong>4. Rendu cinématique</strong> : IPTVX indexe automatiquement vos vidéos par groupe (Films, Séries) avec décodage matériel fluide en 4K HDR.
+              <strong>4. Rendu cinématique</strong> : Vos films et séries sont automatiquement indexés par groupes avec décodage matériel fluide en 4K HDR.
             </li>
           </ol>
 
@@ -196,33 +315,7 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- TAB 3: KODI -->
-        <div v-show="activeTab === 'kodi'" class="guide-pane">
-          <div class="guide-hero">
-            <div class="guide-tag">Compatible PC / TV / Linux / Android</div>
-            <h3>Kodi avec PVR IPTV Simple Client</h3>
-            <p>
-              Pour les amateurs de media-center complet, l'extension native IPTV Simple Client prend en charge la playlist avec rafraîchissement automatique à chaque nouveau téléchargement.
-            </p>
-          </div>
-
-          <ol class="steps-list">
-            <li>
-              <strong>1. Activer l'add-on</strong> : Allez dans <em>Extensions → Mes extensions → Clients PVR → IPTV Simple Client</em> et activez-le.
-            </li>
-            <li>
-              <strong>2. Configurer la playlist</strong> : Dans <em>Configuration → Emplacement → URL distante (Internet)</em>, collez le lien M3U ci-dessus.
-            </li>
-            <li>
-              <strong>3. Fréquence de mise à jour</strong> : Définissez le rafraîchissement sur <em>15 minutes</em> pour que les nouveaux torrents complétés apparaissent automatiquement.
-            </li>
-            <li>
-              <strong>4. Redémarrez Kodi</strong> et accédez au menu <em>TV</em>.
-            </li>
-          </ol>
-        </div>
-
-        <!-- TAB 4: PLEX -->
+        <!-- TAB 5: PLEX -->
         <div v-show="activeTab === 'plex'" class="guide-pane">
           <div class="guide-hero">
             <div class="guide-tag">Intégration Serveur Plex Live TV</div>
@@ -492,6 +585,13 @@ onUnmounted(() => {
   color: #38bdf8;
 }
 
+.step-desc {
+  margin: 0.25rem 0 0;
+  color: #cbd5e1;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
 .guide-alt-box {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -571,12 +671,67 @@ onUnmounted(() => {
 }
 
 @media (max-width: 640px) {
+  .tv-modal-overlay {
+    padding: 0.5rem;
+  }
+  .tv-modal-window {
+    max-height: 96vh;
+    border-radius: 12px;
+  }
+  .tv-modal-header {
+    padding: 0.75rem 1rem;
+  }
+  .tv-title {
+    font-size: 1.05rem;
+  }
+  .tv-subtitle {
+    font-size: 0.75rem;
+    line-height: 1.3;
+  }
+  .tv-url-banner {
+    padding: 0.75rem 1rem;
+  }
+  .url-info-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
+  .url-field-box {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .url-input {
+    width: 100%;
+    min-width: 0;
+    font-size: 0.75rem;
+    padding: 0.5rem;
+  }
+  .btn-copy {
+    width: 100%;
+    padding: 0.6rem;
+    justify-content: center;
+  }
+  .tv-tabs {
+    padding: 0 0.5rem;
+  }
+  .tv-tab-btn {
+    padding: 0.65rem 0.75rem;
+    font-size: 0.78rem;
+  }
+  .tv-body {
+    padding: 1rem;
+  }
   .auth-solution-grid {
     grid-template-columns: 1fr;
   }
   .tv-modal-footer {
+    padding: 0.75rem 1rem;
     flex-direction: column;
     align-items: stretch;
+  }
+  .btn-primary-close {
+    width: 100%;
+    text-align: center;
   }
 }
 </style>

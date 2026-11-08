@@ -129,8 +129,8 @@ describe('Multi-user pseudo filtering and privacy API', () => {
     const resAliceOnly = await request(app).get('/playlist.m3u?user=Alice&onlyUser=true');
     expect(resAliceOnly.status).toBe(200);
     const textAlice = resAliceOnly.text || (resAliceOnly.body ? resAliceOnly.body.toString('utf-8') : '');
-    expect(textAlice).toContain('movie.mp4');
-    expect(textAlice).not.toContain('series.S01E01.mp4');
+    expect(textAlice).toContain('Alice Private Movie');
+    expect(textAlice).not.toContain('Bob Public Series');
   });
 
   it('validates admin password via POST /system/admin-auth and enforces ADMIN_PASSWORD environment variable', async () => {
