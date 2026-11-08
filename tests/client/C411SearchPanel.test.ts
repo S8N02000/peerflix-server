@@ -217,4 +217,63 @@ describe('C411SearchPanel.vue Component', () => {
 
     expect(wrapper.find('.c411-modal-overlay').exists()).toBe(true);
   });
+
+  describe('XXX Category Visibility & Filters', () => {
+    it('hides XXX category pill for non-admin user by default', () => {
+      const wrapper = mount(C411SearchPanel, {
+        props: {
+          c411Profile: { enabled: true, xxxAccess: 'admin' },
+          isAdmin: false,
+        },
+      });
+
+      expect(wrapper.text()).not.toContain('🔞 XXX');
+    });
+
+    it('shows XXX category pill and renders specific filters when user is admin', async () => {
+      const wrapper = mount(C411SearchPanel, {
+        props: {
+          c411Profile: { enabled: true, xxxAccess: 'admin' },
+          isAdmin: true,
+        },
+      });
+
+      expect(wrapper.text()).toContain('🔞 XXX');
+
+      // Click on XXX category pill
+      const xxxPill = wrapper.findAll('.cat-pill-btn').find((p) => p.text().includes('XXX'));
+      expect(xxxPill).toBeDefined();
+      await xxxPill!.trigger('click');
+      await new Promise((r) => setTimeout(r, 60));
+
+      // Verify specific filter controls are rendered
+      expect(wrapper.find('input[placeholder="Team..."]').exists()).toBe(true);
+      expect(wrapper.find('input[placeholder="Uploader..."]').exists()).toBe(true);
+      expect(wrapper.find('.btn-exclusives').exists()).toBe(true);
+      expect(wrapper.find('.btn-palliative').exists()).toBe(true);
+      expect(wrapper.find('.btn-clear-inline').exists()).toBe(true);
+    });
+
+    it('shows XXX category pill for non-admin user when xxxAccess is "all"', () => {
+      const wrapper = mount(C411SearchPanel, {
+        props: {
+          c411Profile: { enabled: true, xxxAccess: 'all' },
+          isAdmin: false,
+        },
+      });
+
+      expect(wrapper.text()).toContain('🔞 XXX');
+    });
+
+    it('hides XXX category pill even for admin when xxxAccess is "none"', () => {
+      const wrapper = mount(C411SearchPanel, {
+        props: {
+          c411Profile: { enabled: true, xxxAccess: 'none' },
+          isAdmin: true,
+        },
+      });
+
+      expect(wrapper.text()).not.toContain('🔞 XXX');
+    });
+  });
 });

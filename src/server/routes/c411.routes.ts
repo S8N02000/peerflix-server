@@ -34,6 +34,30 @@ export function createC411Router(store: TorrentStore, client = new C411Client())
       const sortBy = (req.query.sortBy as string) || 'createdAt';
       const sortOrder = (req.query.sortOrder as string) || 'desc';
 
+      const xxxMode = client.getXxxAccessMode();
+      if (category === '8' || category === '6000') {
+        if (xxxMode === 'none') {
+          res.json({ results: [] });
+          return;
+        }
+        if (xxxMode === 'admin') {
+          const adminPasswordEnv = process.env.ADMIN_PASSWORD;
+          const adminToken = req.headers['x-peerflix-admin-token'] as string | undefined;
+          const adminPass = (req.headers['x-peerflix-admin-password'] || req.query.admin_pass) as string | undefined;
+          const isAdmin = adminPasswordEnv
+            ? (adminToken === 'admin-authorized' || adminPass === adminPasswordEnv)
+            : (req.query.admin === 'true' ||
+               req.headers['x-peerflix-admin'] === 'true' ||
+               adminToken === 'admin-authorized' ||
+               adminToken === 'admin-authorized-default');
+
+          if (!isAdmin) {
+            res.status(403).json({ error: 'Forbidden', message: 'La catégorie XXX est réservée aux administrateurs.' });
+            return;
+          }
+        }
+      }
+
       let results: import('../../shared/types.js').C411SearchResultDTO[] = [];
       try {
         results = await client.searchNative({

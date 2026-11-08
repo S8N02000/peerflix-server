@@ -30,6 +30,7 @@ import {
 const props = defineProps<{
   c411Profile?: C411ProfileDTO | null;
   activeHashes?: Set<string>;
+  isAdmin?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -59,6 +60,18 @@ const errorMessage = ref<string | null>(null);
 const addingId = ref<string | null>(null);
 const addedIds = ref<Set<string>>(new Set());
 
+// XXX Category access rights
+const canAccessXxx = computed(() => {
+  const mode = props.c411Profile?.xxxAccess || 'admin';
+  if (mode === 'none') return false;
+  if (mode === 'all') return true;
+  return Boolean(props.isAdmin);
+});
+
+const visibleCategories = computed(() => {
+  return categories.filter((c: any) => !c.isXxx || canAccessXxx.value);
+});
+
 // Multi-Dimension Filters
 const filterSubCat = ref('');
 const filterSeason = ref('');
@@ -71,6 +84,10 @@ const filterAudio = ref('');
 const filterCodec = ref('');
 const filterYear = ref('');
 const filterFormat = ref('');
+const filterTeam = ref('');
+const filterUploader = ref('');
+const filterExclusives = ref(false);
+const filterPalliative = ref(false);
 
 // Preset filters saved in localStorage
 const savedPresets = ref<C411SavedFilter[]>([]);
@@ -113,6 +130,8 @@ const performSearch = async () => {
     if (filterYear.value && !filterYear.value.includes('<') && !filterYear.value.includes('-')) {
       apiFilters.year = filterYear.value;
     }
+    if (filterTeam.value.trim()) apiFilters.team = filterTeam.value.trim();
+    if (filterUploader.value.trim()) apiFilters.uploader = filterUploader.value.trim();
 
     const res = await searchC411(searchQuery.value, selectedCat.value, apiFilters);
     rawResults.value = res.results;
@@ -135,6 +154,9 @@ const isCategoryActive = (c: { cat: string; subcat?: string }) => {
 };
 
 const selectCategory = (cat: string, subcat?: string) => {
+  if (cat === '8' && !canAccessXxx.value) {
+    return;
+  }
   selectedCat.value = cat;
   filterSubCat.value = subcat || '';
   filterFormat.value = '';
@@ -318,6 +340,31 @@ const filteredResults = computed(() => {
       }
     }
 
+    // Team
+    if (filterTeam.value.trim()) {
+      const targetTeam = filterTeam.value.toLowerCase().trim();
+      const itemTeam = (item.team || '').toLowerCase();
+      const rawLower = item.title.toLowerCase();
+      if (!itemTeam.includes(targetTeam) && !rawLower.includes(targetTeam)) return false;
+    }
+
+    // Uploader
+    if (filterUploader.value.trim()) {
+      const targetUp = filterUploader.value.toLowerCase().trim();
+      const itemUp = (item.uploader || '').toLowerCase();
+      if (!itemUp.includes(targetUp)) return false;
+    }
+
+    // Exclusivités
+    if (filterExclusives.value && !item.isExclusive) {
+      return false;
+    }
+
+    // Soins palliatifs (critiques : seeders <= 1)
+    if (filterPalliative.value && item.seeders > 1) {
+      return false;
+    }
+
     return true;
   });
 });
@@ -351,6 +398,10 @@ const activeTags = computed(() => {
   if (filterAudio.value) tags.push({ key: 'audio', label: `Audio : ${filterAudio.value.toUpperCase()}` });
   if (filterCodec.value) tags.push({ key: 'codec', label: `Codec : ${filterCodec.value.toUpperCase()}` });
   if (filterYear.value) tags.push({ key: 'year', label: `Année : ${filterYear.value}` });
+  if (filterTeam.value.trim()) tags.push({ key: 'team', label: `Team : ${filterTeam.value.trim()}` });
+  if (filterUploader.value.trim()) tags.push({ key: 'uploader', label: `Uploader : ${filterUploader.value.trim()}` });
+  if (filterExclusives.value) tags.push({ key: 'exclusives', label: `⭐ Exclusivités` });
+  if (filterPalliative.value) tags.push({ key: 'palliative', label: `❤️ Soins palliatifs` });
   return tags;
 });
 
@@ -366,6 +417,10 @@ const removeTag = (key: string) => {
   if (key === 'audio') filterAudio.value = '';
   if (key === 'codec') filterCodec.value = '';
   if (key === 'year') filterYear.value = '';
+  if (key === 'team') filterTeam.value = '';
+  if (key === 'uploader') filterUploader.value = '';
+  if (key === 'exclusives') filterExclusives.value = false;
+  if (key === 'palliative') filterPalliative.value = false;
   onFilterChange();
 };
 
@@ -381,6 +436,10 @@ const clearAllFilters = () => {
   filterAudio.value = '';
   filterCodec.value = '';
   filterYear.value = '';
+  filterTeam.value = '';
+  filterUploader.value = '';
+  filterExclusives.value = false;
+  filterPalliative.value = false;
   onFilterChange();
 };
 
@@ -417,6 +476,10 @@ const applyPreset = (preset: C411SavedFilter) => {
   if (preset.audio !== undefined) filterAudio.value = preset.audio;
   if (preset.codec !== undefined) filterCodec.value = preset.codec;
   if (preset.year !== undefined) filterYear.value = preset.year;
+  if (preset.team !== undefined) filterTeam.value = preset.team;
+  if (preset.uploader !== undefined) filterUploader.value = preset.uploader;
+  if (preset.isExclusive !== undefined) filterExclusives.value = preset.isExclusive;
+  if (preset.isPalliative !== undefined) filterPalliative.value = preset.isPalliative;
   if (preset.cat !== undefined && preset.cat !== selectedCat.value) {
     selectedCat.value = preset.cat;
   }
@@ -439,6 +502,10 @@ const saveCurrentAsPreset = () => {
     audio: filterAudio.value,
     codec: filterCodec.value,
     year: filterYear.value,
+    team: filterTeam.value,
+    uploader: filterUploader.value,
+    isExclusive: filterExclusives.value,
+    isPalliative: filterPalliative.value,
   };
 
   savedPresets.value.push(newPreset);
@@ -540,7 +607,7 @@ onMounted(() => {
     <!-- Category Pills with Colored Dots (Style C411) -->
     <div class="category-pills-bar">
       <button
-        v-for="cat in categories"
+        v-for="cat in visibleCategories"
         :key="cat.label"
         type="button"
         class="cat-pill-btn"
@@ -758,6 +825,72 @@ onMounted(() => {
         <select v-model="filterYear" class="c411-select" title="Année" @change="onFilterChange">
           <option v-for="opt in yearOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
         </select>
+      </template>
+
+      <!-- 9. XXX ('8') -->
+      <template v-else-if="selectedCat === '8'">
+        <!-- Sous-catégorie -->
+        <select v-model="filterSubCat" class="c411-select" title="Sous-catégorie" @change="onFilterChange">
+          <option v-for="opt in currentSubCatOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Langue -->
+        <select v-model="filterLanguage" class="c411-select" title="Langue" @change="onFilterChange">
+          <option v-for="opt in generalLanguageOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Qualité -->
+        <select v-model="filterResolution" class="c411-select" title="Qualité" @change="onFilterChange">
+          <option v-for="opt in resolutionOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Année -->
+        <select v-model="filterYear" class="c411-select" title="Année" @change="onFilterChange">
+          <option v-for="opt in yearOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Team -->
+        <input
+          v-model="filterTeam"
+          type="text"
+          class="c411-input-filter"
+          placeholder="Team..."
+          title="Filtrer par Team"
+          @input="onFilterChange"
+        />
+        <!-- Uploader -->
+        <input
+          v-model="filterUploader"
+          type="text"
+          class="c411-input-filter"
+          placeholder="Uploader..."
+          title="Filtrer par Uploader"
+          @input="onFilterChange"
+        />
+        <!-- Spacer -->
+        <span class="flex-spacer"></span>
+        <!-- Exclusivités -->
+        <button
+          type="button"
+          class="btn-badge-filter btn-exclusives"
+          :class="{ active: filterExclusives }"
+          @click="filterExclusives = !filterExclusives; onFilterChange()"
+        >
+          <span class="filter-icon">⭐</span> Exclusivités
+        </button>
+        <!-- Soins palliatifs -->
+        <button
+          type="button"
+          class="btn-badge-filter btn-palliative"
+          :class="{ active: filterPalliative }"
+          @click="filterPalliative = !filterPalliative; onFilterChange()"
+        >
+          <span class="filter-icon">❤️</span> Soins palliatifs
+        </button>
+        <!-- Tout effacer -->
+        <button
+          type="button"
+          class="btn-clear-inline"
+          @click="clearAllFilters"
+        >
+          Tout effacer
+        </button>
       </template>
     </div>
 
@@ -1205,6 +1338,83 @@ onMounted(() => {
 .c411-select option {
   background: #141724;
   color: #f3f4f6;
+}
+
+.c411-input-filter {
+  background: #141724;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  outline: none;
+  max-width: 140px;
+  transition: border-color 0.15s;
+}
+
+.c411-input-filter:focus {
+  border-color: #10b981;
+}
+
+.flex-spacer {
+  flex: 1;
+}
+
+.btn-badge-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 9999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.btn-exclusives {
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #fbbf24;
+  background: transparent;
+}
+
+.btn-exclusives:hover,
+.btn-exclusives.active {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: #f59e0b;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+}
+
+.btn-palliative {
+  border-color: rgba(244, 63, 94, 0.35);
+  color: #fb7185;
+  background: transparent;
+}
+
+.btn-palliative:hover,
+.btn-palliative.active {
+  background: rgba(244, 63, 94, 0.18);
+  border-color: #f43f5e;
+  box-shadow: 0 0 10px rgba(244, 63, 94, 0.2);
+}
+
+.btn-clear-inline {
+  background: transparent;
+  border: none;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #34d399;
+  cursor: pointer;
+  padding: 0.35rem 0.5rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.btn-clear-inline:hover {
+  text-decoration: underline;
+  color: #10b981;
 }
 
 .cat-hint-pill {

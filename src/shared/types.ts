@@ -148,6 +148,8 @@ export interface C411SearchResultDTO {
   codec?: string;
   year?: string;
   team?: string;
+  uploader?: string;
+  isExclusive?: boolean;
   torrentId?: string;
   commentsCount?: number;
   description?: string;
@@ -161,6 +163,18 @@ export interface C411CommentDTO {
   date: string;
   content: string;
   likeCount?: number;
+}
+
+export interface C411ProfileDTO {
+  enabled: boolean;
+  xxxAccess?: 'admin' | 'all' | 'none';
+  username?: string;
+  avatarUrl?: string;
+  uploadedBytes?: number;
+  downloadedBytes?: number;
+  zenBalance?: number;
+  freeleechActive?: boolean;
+  downloadAllowed?: boolean;
 }
 
 export interface C411TorrentDetailsDTO {
@@ -204,17 +218,10 @@ export interface C411SavedFilter {
   audio?: string;
   codec?: string;
   year?: string;
+  team?: string;
+  uploader?: string;
+  isExclusive?: boolean;
+  isPalliative?: boolean;
   freeleechOnly?: boolean;
-}
-
-export interface C411ProfileDTO {
-  enabled: boolean;
-  username?: string;
-  avatarUrl?: string;
-  uploadedBytes?: number;
-  downloadedBytes?: number;
-  zenBalance?: number;
-  freeleechActive?: boolean;
-  downloadAllowed?: boolean;
 }
 

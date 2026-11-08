@@ -16,6 +16,7 @@ export const C411_CATEGORIES = [
   { label: 'Jeux Vidéo', cat: '5', subcat: '', dotColor: '#06b6d4' },
   { label: 'Émulation', cat: '6', subcat: '', dotColor: '#ec4899' },
   { label: 'Imprimante 3D', cat: '10', subcat: '', dotColor: '#eab308' },
+  { label: '🔞 XXX', cat: '8', subcat: '', dotColor: '#ec4899', isXxx: true },
 ];
 
 // Subcategories per C411 Category
@@ -86,6 +87,15 @@ export const C411_SUBCAT_OPTIONS_MAP: Record<string, Array<{ label: string; valu
     { label: '🧩 Objets', value: '47' },
     { label: '👤 Personnages', value: '48' },
     { label: '📦 Pack', value: '49' },
+  ],
+  '8': [
+    { label: 'Sous-catégorie', value: '' },
+    { label: '🎬 Films', value: '6010' },
+    { label: '⛩️ Hentai', value: '6070' },
+    { label: '📚 Ebooks', value: '6050' },
+    { label: '🖼️ Images', value: '6060' },
+    { label: '🎮 Jeux', value: '6080' },
+    { label: '🥽 VR', value: '6000' },
   ],
 };
 

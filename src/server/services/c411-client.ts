@@ -32,6 +32,21 @@ export class C411Client {
   }
 
   /**
+   * Determine XXX category access policy from environment:
+   * 'admin' (default), 'all', or 'none'
+   */
+  public getXxxAccessMode(): 'admin' | 'all' | 'none' {
+    const raw = (process.env.C411_XXX_ACCESS || process.env.ENABLE_XXX || 'admin').trim().toLowerCase();
+    if (raw === 'all' || raw === 'everyone' || raw === 'true' || raw === '1' || raw === 'yes') {
+      return 'all';
+    }
+    if (raw === 'none' || raw === 'false' || raw === '0' || raw === 'no' || raw === 'disabled') {
+      return 'none';
+    }
+    return 'admin';
+  }
+
+  /**
    * Search C411 native REST API (/api/torrents)
    */
   public async searchNative(params: {
@@ -53,6 +68,12 @@ export class C411Client {
   }): Promise<C411SearchResultDTO[]> {
     if (!this.isEnabled()) {
       return [];
+    }
+
+    // Category 8 (XXX) is not served by C411 REST API, route directly to Torznab (cat 6000)
+    if (params.category === '8' || params.category === '6000') {
+      const torznabCat = params.subcat?.trim() || '6000';
+      return this.searchTorznab(params.name || '', torznabCat);
     }
 
     const queryKey = JSON.stringify(params);
@@ -196,8 +217,9 @@ export class C411Client {
     if (query.trim()) {
       url.searchParams.set('q', query.trim());
     }
-    if (torznabCat.trim()) {
-      url.searchParams.set('cat', torznabCat.trim());
+    const mappedCat = torznabCat.trim() === '8' ? '6000' : torznabCat.trim();
+    if (mappedCat) {
+      url.searchParams.set('cat', mappedCat);
     }
 
     const response = await fetch(url.toString(), {
@@ -326,6 +348,19 @@ export class C411Client {
       const resolutionAttr = getAttr('resolution');
       const resolution = resolutionAttr || undefined;
 
+      // Extract subcategory name for XXX or standard
+      let subcategoryName: string | undefined;
+      if (categoryId === '6010') subcategoryName = 'Films';
+      else if (categoryId === '6070') subcategoryName = 'Hentai';
+      else if (categoryId === '6050') subcategoryName = 'Ebooks';
+      else if (categoryId === '6060') subcategoryName = 'Images';
+      else if (categoryId === '6080') subcategoryName = 'Jeux';
+      else if (categoryId === '6000') subcategoryName = 'VR';
+
+      // Uploader and Exclusive flag if available
+      const uploader = getTag('author') || getAttr('uploader') || undefined;
+      const isExclusive = getAttr('exclusive') === '1' || getAttr('isExclusive') === 'true';
+
       // Create an obfuscated local ID for this download URL
       const id = crypto.createHash('sha256').update(downloadUrl || title).digest('hex').slice(0, 16);
       if (downloadUrl) {
@@ -342,6 +377,10 @@ export class C411Client {
         completed,
         categoryId,
         categoryName: this.mapCategoryName(categoryId),
+        subcategoryId: categoryId,
+        subcategoryName,
+        uploader,
+        isExclusive,
         isFreeleech,
         infoHash,
         posterUrl,
@@ -394,6 +433,14 @@ export class C411Client {
       case '7020':
       case '7030':
         return 'Livres / BD';
+      case '8':
+      case '6000':
+      case '6010':
+      case '6050':
+      case '6060':
+      case '6070':
+      case '6080':
+        return 'XXX';
       default:
         return undefined;
     }
@@ -719,8 +766,9 @@ export class C411Client {
    * Fetch user profile with strict 60s cache (rate limit 30 req/min)
    */
   public async getUserProfile(): Promise<C411ProfileDTO> {
+    const xxxAccess = this.getXxxAccessMode();
     if (!this.isEnabled()) {
-      return { enabled: false };
+      return { enabled: false, xxxAccess };
     }
 
     const now = Date.now();
@@ -738,7 +786,7 @@ export class C411Client {
 
       if (!response.ok) {
         // If 403 Forbidden (e.g. missing profile:read scope), return enabled: true without crashing
-        const dto: C411ProfileDTO = { enabled: true };
+        const dto: C411ProfileDTO = { enabled: true, xxxAccess };
         this.profileCache = { data: dto, expiresAt: now + 60 * 1000 };
         return dto;
       }
@@ -748,6 +796,7 @@ export class C411Client {
 
       const dto: C411ProfileDTO = {
         enabled: true,
+        xxxAccess,
         username: data.username,
         avatarUrl: data.avatar,
         uploadedBytes: data.transfer?.uploaded?.total ?? data.uploaded,
@@ -760,7 +809,7 @@ export class C411Client {
       this.profileCache = { data: dto, expiresAt: now + 60 * 1000 };
       return dto;
     } catch {
-      return { enabled: true };
+      return { enabled: true, xxxAccess };
     }
   }
 

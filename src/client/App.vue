@@ -244,6 +244,7 @@ onMounted(async () => {
           v-if="c411Profile?.enabled"
           :c411-profile="c411Profile"
           :active-hashes="activeHashes"
+          :is-admin="isAdmin"
           @torrent-added="handleC411TorrentAdded"
         />
       </div>

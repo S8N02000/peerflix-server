@@ -185,4 +185,87 @@ describe('C411 Torznab & Profile Service', () => {
     expect(res.body.infoHash).toBe('new_info_hash_123');
     expect(mockStore.add).toHaveBeenCalled();
   });
+
+  describe('XXX Category Access Control & Environment Configuration', () => {
+    it('defaults xxxAccess to "admin" when C411_XXX_ACCESS / ENABLE_XXX is not set', () => {
+      const original = process.env.C411_XXX_ACCESS;
+      delete process.env.C411_XXX_ACCESS;
+      delete process.env.ENABLE_XXX;
+
+      const client = new C411Client('KEY', 'https://c411.org');
+      expect(client.getXxxAccessMode()).toBe('admin');
+
+      if (original) process.env.C411_XXX_ACCESS = original;
+    });
+
+    it('parses xxxAccess as "all" or "none" correctly from environment variables', () => {
+      process.env.C411_XXX_ACCESS = 'all';
+      const clientAll = new C411Client('KEY', 'https://c411.org');
+      expect(clientAll.getXxxAccessMode()).toBe('all');
+
+      process.env.C411_XXX_ACCESS = 'none';
+      const clientNone = new C411Client('KEY', 'https://c411.org');
+      expect(clientNone.getXxxAccessMode()).toBe('none');
+
+      delete process.env.C411_XXX_ACCESS;
+    });
+
+    it('rejects category 8 search with 403 Forbidden for non-admin when access is "admin"', async () => {
+      const mockClient: any = {
+        isEnabled: () => true,
+        getXxxAccessMode: () => 'admin',
+        searchNative: vi.fn(),
+        searchTorznab: vi.fn().mockResolvedValue([])
+      };
+      const mockStore: any = {
+        list: vi.fn().mockReturnValue([])
+      };
+      const app = createApp({ store: mockStore, c411Client: mockClient, enableLogging: false });
+
+      const res = await request(app).get('/c411/search?category=8');
+      expect(res.status).toBe(403);
+      expect(res.body.error).toBe('Forbidden');
+    });
+
+    it('allows category 8 search for admin when access is "admin"', async () => {
+      const mockClient: any = {
+        isEnabled: () => true,
+        getXxxAccessMode: () => 'admin',
+        searchNative: vi.fn().mockResolvedValue([
+          { id: 'xxx1', title: 'Adult Movie 1080p', size: 1000, seeders: 10, leechers: 2, isFreeleech: false }
+        ]),
+        searchTorznab: vi.fn()
+      };
+      const mockStore: any = {
+        list: vi.fn().mockReturnValue([])
+      };
+      const app = createApp({ store: mockStore, c411Client: mockClient, enableLogging: false });
+
+      const res = await request(app)
+        .get('/c411/search?category=8')
+        .set('X-Peerflix-Admin-Token', 'admin-authorized');
+
+      expect(res.status).toBe(200);
+      expect(res.body.results.length).toBe(1);
+    });
+
+    it('allows category 8 search for everyone when access is "all"', async () => {
+      const mockClient: any = {
+        isEnabled: () => true,
+        getXxxAccessMode: () => 'all',
+        searchNative: vi.fn().mockResolvedValue([
+          { id: 'xxx2', title: 'Adult Movie 720p', size: 1000, seeders: 5, leechers: 1, isFreeleech: false }
+        ]),
+        searchTorznab: vi.fn()
+      };
+      const mockStore: any = {
+        list: vi.fn().mockReturnValue([])
+      };
+      const app = createApp({ store: mockStore, c411Client: mockClient, enableLogging: false });
+
+      const res = await request(app).get('/c411/search?category=8');
+      expect(res.status).toBe(200);
+      expect(res.body.results.length).toBe(1);
+    });
+  });
 });

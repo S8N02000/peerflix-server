@@ -192,6 +192,7 @@ services:
       # Intégration C411 (Recherche native & streaming 1-clic)
       # - C411_API_KEY=votre_cle_api_c411
       # - C411_BASE_URL=https://c411.org
+      # - C411_XXX_ACCESS=admin # 'admin' (défaut), 'all' (tout le monde), 'none' (désactivé)
 
       # Sécurité CORS & Fuseau horaire
       # - CORS_ORIGIN=https://peerflix.mon-domaine.com
@@ -234,6 +235,7 @@ Ouvrez ensuite votre navigateur sur **[http://localhost:9000](http://localhost:9
 | `PUBLIC_AUTH_CREDENTIALS` | Identifiants Basic Auth injectés dans les liens M3U / QR code | *Non défini* | `admin:supersecret` |
 | `C411_API_KEY` | Clé API C411 pour recherche et streaming en un clic | *Non défini* | `votre_passkey_c411` |
 | `C411_BASE_URL` | URL de l'instance C411 | `https://c411.org` | `https://c411.org` |
+| `C411_XXX_ACCESS` | Visibilité catégorie XXX : `admin` (réservé admin), `all` (tous), `none` (désactivé) | `admin` | `admin`, `all`, `none` |
 | `CORS_ORIGIN` | Domaine autorisé pour les requêtes cross-origin et WebSocket | *Restreint* | `https://stream.domaine.fr` |
 | `TZ` | Fuseau horaire du conteneur | `UTC` | `Europe/Paris` |
 | `NODE_ENV` | Environnement d'exécution Node.js | `production` | `production` |
