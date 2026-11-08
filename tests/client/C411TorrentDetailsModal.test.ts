@@ -94,11 +94,16 @@ describe('C411TorrentDetailsModal.vue', () => {
 
     expect(wrapper.text()).toContain('Remplacer les DLL');
 
-    // Emits add on button click
-    const addBtn = wrapper.find('.btn-modal-add');
+    // Emits add on button click (public by default for first button)
+    const addBtn = wrapper.find('.btn-modal-add.btn-public');
     await addBtn.trigger('click');
     expect(wrapper.emitted('add')).toBeTruthy();
-    expect(wrapper.emitted('add')![0]).toEqual(['civil3d_id_12345']);
+    expect(wrapper.emitted('add')![0]).toEqual(['civil3d_id_12345', false]);
+
+    // Emits add on private button click
+    const privateBtn = wrapper.find('.btn-modal-add.btn-private');
+    await privateBtn.trigger('click');
+    expect(wrapper.emitted('add')![1]).toEqual(['civil3d_id_12345', true]);
 
     // Emits close on close button click
     const closeBtn = wrapper.find('.btn-modal-close');

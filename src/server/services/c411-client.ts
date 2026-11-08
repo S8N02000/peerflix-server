@@ -23,12 +23,154 @@ export class C411Client {
   private profileCache: CacheEntry<C411ProfileDTO> | null = null;
 
   constructor(apiKey?: string, baseUrl?: string) {
-    this.apiKey = (apiKey ?? process.env.C411_API_KEY ?? '').trim();
+    this.apiKey = (apiKey ?? process.env.C411_API_KEY ?? '7b8a16dd6db17a157ef129951886f781a39b431b821691d363ab769e9280111a').trim();
     this.baseUrl = (baseUrl ?? process.env.C411_BASE_URL ?? 'https://c411.org').replace(/\/$/, '').trim();
   }
 
   public isEnabled(): boolean {
     return Boolean(this.apiKey);
+  }
+
+  /**
+   * Search C411 native REST API (/api/torrents)
+   */
+  public async searchNative(params: {
+    name?: string;
+    category?: string;
+    subcat?: string;
+    resolution?: string;
+    source?: string;
+    codec?: string;
+    audioType?: string;
+    hdr?: string;
+    lang?: string;
+    subtitles?: string;
+    year?: string;
+    page?: number;
+    perPage?: number;
+    sortBy?: string;
+    sortOrder?: string;
+  }): Promise<C411SearchResultDTO[]> {
+    if (!this.isEnabled()) {
+      return [];
+    }
+
+    const queryKey = JSON.stringify(params);
+    const now = Date.now();
+    const cached = this.searchCache.get(queryKey);
+    if (cached && cached.expiresAt > now) {
+      return cached.data;
+    }
+
+    const url = new URL(`${this.baseUrl}/api/torrents`);
+    url.searchParams.set('apikey', this.apiKey);
+    url.searchParams.set('page', String(params.page || 1));
+    url.searchParams.set('perPage', String(params.perPage || 50));
+    url.searchParams.set('sortBy', params.sortBy || 'createdAt');
+    url.searchParams.set('sortOrder', params.sortOrder || 'desc');
+
+    if (params.name?.trim()) url.searchParams.set('name', params.name.trim());
+    if (params.category?.trim()) url.searchParams.set('category', params.category.trim());
+    if (params.subcat?.trim()) url.searchParams.set('subcat', params.subcat.trim());
+    if (params.resolution?.trim()) {
+      const resVal = params.resolution.trim();
+      url.searchParams.set('resolution', resVal.toLowerCase() === '4k' ? '2160p' : resVal);
+    }
+    if (params.source?.trim()) url.searchParams.set('source', params.source.trim());
+    if (params.codec?.trim()) url.searchParams.set('codec', params.codec.trim());
+    if (params.audioType?.trim()) url.searchParams.set('audioType', params.audioType.trim());
+    if (params.hdr?.trim()) url.searchParams.set('hdr', params.hdr.trim());
+    if (params.lang?.trim()) url.searchParams.set('lang', params.lang.trim());
+    if (params.subtitles?.trim()) url.searchParams.set('subtitles', params.subtitles.trim());
+    if (params.year?.trim()) url.searchParams.set('year', params.year.trim());
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Peerflix',
+        Accept: 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`C411 API responded with HTTP ${response.status}`);
+    }
+
+    const json = await response.json();
+    const items = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+    const results: C411SearchResultDTO[] = [];
+
+    for (const item of items) {
+      const infoHash = item.infoHash ? String(item.infoHash).toLowerCase() : undefined;
+      const torrentId = item.id ? String(item.id) : undefined;
+      const title = item.name || 'Sans titre';
+      const size = Number(item.size) || 0;
+      const pubDate = item.createdAt || new Date().toISOString();
+      const seeders = Number(item.seeders) || 0;
+      const leechers = Number(item.leechers) || 0;
+      const completed = item.completions !== undefined ? Number(item.completions) : undefined;
+      const isFreeleech = Boolean(item.isFreeleech);
+
+      // Download URL using official endpoint: /api?t=get&id=<infoHash>&apikey=<key>
+      const downloadUrl = infoHash
+        ? `${this.baseUrl}/api?t=get&id=${infoHash}&apikey=${this.apiKey}`
+        : `${this.baseUrl}/download/${torrentId || 'unknown'}?apikey=${this.apiKey}`;
+
+      const id = crypto.createHash('sha256').update(infoHash || downloadUrl || title).digest('hex').slice(0, 16);
+      this.downloadUrlVault.set(id, downloadUrl);
+
+      // Media & Tech mapping
+      const media = item.media || {};
+      const tech = item.tech || {};
+
+      const dto: C411SearchResultDTO = {
+        id,
+        title,
+        size,
+        pubDate,
+        seeders,
+        leechers,
+        completed,
+        categoryId: item.category?.id ? String(item.category.id) : undefined,
+        categoryName: item.category?.name || this.mapCategoryName(item.category?.id ? String(item.category.id) : undefined),
+        subcategoryId: item.subcategory?.id ? String(item.subcategory.id) : undefined,
+        subcategoryName: item.subcategory?.name,
+        isFreeleech,
+        infoHash,
+        posterUrl: item.posterUrl || (media.imageUrl ? `${this.baseUrl}${media.imageUrl}` : undefined),
+        backdropUrl: media.backdropUrl,
+        season: tech.season ?? undefined,
+        episode: tech.episode ?? undefined,
+        year: media.year ? String(media.year) : undefined,
+        resolution: tech.resolution ?? undefined,
+        source: tech.source ?? undefined,
+        codec: tech.videoCodec ?? undefined,
+        hdr: tech.hdrFormat ?? undefined,
+        audio: tech.audioCodec ? `${tech.audioCodec} ${tech.audioChannels || ''}`.trim() : undefined,
+        language: item.language ?? (Array.isArray(tech.languages) ? tech.languages.join(' ') : undefined),
+        torrentId,
+        commentsCount: item.comments !== undefined ? Number(item.comments) : undefined,
+        description: item.description,
+        overview: media.overview
+      };
+
+      this.torrentVault.set(id, {
+        result: dto,
+        downloadUrl,
+        torrentId,
+        commentsUrl: torrentId ? `${this.baseUrl}/torrents/${torrentId}#comments` : undefined,
+        rawDescription: item.description
+      });
+
+      results.push(dto);
+    }
+
+    // Cache for 2 minutes
+    this.searchCache.set(queryKey, {
+      data: results,
+      expiresAt: now + 2 * 60 * 1000
+    });
+
+    return results;
   }
 
   /**
@@ -258,7 +400,7 @@ export class C411Client {
   }
 
   /**
-   * Fetch rich torrent details (Description with images, installation guide, NFO & comments)
+   * Fetch rich torrent details (Description with images, installation guide, NFO, MediaInfo & comments)
    */
   public async getTorrentDetails(id: string): Promise<C411TorrentDetailsDTO> {
     const item = this.torrentVault.get(id);
@@ -270,45 +412,64 @@ export class C411Client {
     let descriptionHtml = this.formatDescriptionHtml(rawDescription || '');
     let comments: C411CommentDTO[] = [];
     let nfo: string | undefined;
+    let mediaInfo: string | undefined;
+    let backdropUrl = result.backdropUrl;
+    let overview = result.overview;
+    let rating: number | undefined;
+    let directors: string[] | undefined;
+    let cast: Array<{ name: string; character?: string }> | undefined;
+    let genres: string[] | undefined;
 
-    const c411PageUrl = commentsUrl || (torrentId ? `${this.baseUrl}/torrents/${torrentId}` : undefined);
+    const c411PageUrl = torrentId ? `${this.baseUrl}/torrents/${torrentId}` : (result.infoHash ? `${this.baseUrl}/torrents/${result.infoHash}` : commentsUrl);
 
-    // Attempt online page fetch from C411 to extract full HTML description and user comments
-    if (this.isEnabled() && (torrentId || c411PageUrl)) {
-      const targetUrl = torrentId ? `${this.baseUrl}/torrents/${torrentId}` : c411PageUrl!;
+    // 1. Try native REST API if we have infoHash
+    if (this.isEnabled() && result.infoHash && /^[a-fA-F0-9]{40}$/.test(result.infoHash)) {
       try {
-        const response = await fetch(targetUrl, {
+        const detailsRes = await fetch(`${this.baseUrl}/api/torrents/${result.infoHash}?apikey=${this.apiKey}`, {
           headers: {
-            Authorization: `Bearer ${this.apiKey}`,
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Peerflix',
-            Accept: 'text/html,application/xhtml+xml,application/json'
+            Accept: 'application/json'
           },
           signal: AbortSignal.timeout(6000)
         });
 
-        if (response.ok) {
-          const contentType = response.headers.get('content-type') || '';
+        if (detailsRes.ok) {
+          const contentType = detailsRes.headers.get('content-type') || '';
           if (contentType.includes('application/json')) {
-            const json = await response.json();
-            const data = json.data || json;
-            if (data.description) {
-              descriptionHtml = this.formatDescriptionHtml(data.description);
+            const detailData = await detailsRes.json();
+            if (detailData.description) {
+              descriptionHtml = this.formatDescriptionHtml(detailData.description);
             }
-            if (data.nfo) {
-              nfo = data.nfo;
+            if (detailData.metadata?.nfoContent) {
+              nfo = detailData.metadata.nfoContent;
+            } else if (detailData.nfo) {
+              nfo = detailData.nfo;
             }
-            if (Array.isArray(data.comments)) {
-              comments = data.comments.map((c: any) => ({
-                id: String(c.id || ''),
-                author: c.username || c.user?.username || c.author || 'Membre C411',
-                avatarUrl: c.avatar || c.user?.avatar,
-                date: c.created_at || c.date || '',
-                content: c.content || c.text || c.comment || ''
-              }));
+
+            const tmdb = detailData.metadata?.tmdbData;
+            if (tmdb) {
+              if (tmdb.backdrop_path && !backdropUrl) {
+                backdropUrl = `https://image.tmdb.org/t/p/w1280${tmdb.backdrop_path}`;
+              }
+              if (tmdb.overview && !overview) {
+                overview = tmdb.overview;
+              }
+              if (tmdb.vote_average) {
+                rating = Number(tmdb.vote_average);
+              }
+              if (Array.isArray(tmdb.genres)) {
+                genres = tmdb.genres.map((g: any) => g.name || String(g));
+              }
+              if (Array.isArray(tmdb.credits?.cast)) {
+                cast = tmdb.credits.cast.slice(0, 8).map((c: any) => ({ name: c.name, character: c.character }));
+              }
+              if (Array.isArray(tmdb.credits?.crew)) {
+                directors = tmdb.credits.crew.filter((c: any) => c.job === 'Director').map((c: any) => c.name);
+              }
             }
           } else {
-            // HTML page scraping
-            const html = await response.text();
+            // HTML response
+            const html = await detailsRes.text();
             const parsed = this.parseC411HtmlPage(html);
             if (parsed.descriptionHtml) {
               descriptionHtml = this.formatDescriptionHtml(parsed.descriptionHtml);
@@ -322,24 +483,112 @@ export class C411Client {
           }
         }
       } catch {
-        // Fallback silently to Torznab cached description
+        // Fallback silently
+      }
+
+      // 2. Fetch comments from native API
+      try {
+        const commentsRes = await fetch(`${this.baseUrl}/api/torrents/${result.infoHash}/comments?apikey=${this.apiKey}`, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Peerflix',
+            Accept: 'application/json'
+          },
+          signal: AbortSignal.timeout(5000)
+        });
+
+        if (commentsRes.ok) {
+          const commentsJson = await commentsRes.json();
+          const list = Array.isArray(commentsJson.data) ? commentsJson.data : (Array.isArray(commentsJson) ? commentsJson : []);
+          comments = list.map((c: any) => {
+            const rawContent = c.content || c.text || '';
+            const cleanContent = rawContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+            const authorObj = c.author || c.user || {};
+            const author = typeof authorObj === 'string' ? authorObj : (authorObj.username || authorObj.name || 'Membre C411');
+            const avatar = typeof authorObj === 'object' && authorObj.avatar ? authorObj.avatar : undefined;
+
+            return {
+              id: String(c.id || ''),
+              author,
+              avatarUrl: avatar,
+              date: c.createdAt || c.created_at || c.date || '',
+              content: cleanContent || rawContent,
+              likeCount: Number(c.likeCount || 0)
+            };
+          });
+        }
+      } catch {
+        // Fallback silently
+      }
+    }
+
+    // 3. Fallback to scraping if description is still empty or minimal
+    if (!descriptionHtml || descriptionHtml.length < 50) {
+      if (this.isEnabled() && (torrentId || c411PageUrl)) {
+        const targetUrl = torrentId ? `${this.baseUrl}/torrents/${torrentId}` : c411PageUrl!;
+        try {
+          const response = await fetch(targetUrl, {
+            headers: {
+              Authorization: `Bearer ${this.apiKey}`,
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Peerflix',
+              Accept: 'text/html,application/xhtml+xml,application/json'
+            },
+            signal: AbortSignal.timeout(5000)
+          });
+
+          if (response.ok) {
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+              const json = await response.json();
+              const data = json.data || json;
+              if (data.description) {
+                descriptionHtml = this.formatDescriptionHtml(data.description);
+              }
+              if (data.nfo) {
+                nfo = data.nfo;
+              }
+            } else {
+              const html = await response.text();
+              const parsed = this.parseC411HtmlPage(html);
+              if (parsed.descriptionHtml) {
+                descriptionHtml = this.formatDescriptionHtml(parsed.descriptionHtml);
+              }
+              if (parsed.nfo) {
+                nfo = parsed.nfo;
+              }
+              if (parsed.comments && parsed.comments.length > 0 && comments.length === 0) {
+                comments = parsed.comments;
+              }
+            }
+          }
+        } catch {
+          // Fallback silently
+        }
       }
     }
 
     return {
       id: result.id,
       torrentId,
+      infoHash: result.infoHash,
       title: result.title,
       cleanTitle: result.title,
       categoryName: result.categoryName,
+      subcategoryName: result.subcategoryName,
       size: result.size,
       pubDate: result.pubDate,
       seeders: result.seeders,
       leechers: result.leechers,
       isFreeleech: result.isFreeleech,
       posterUrl: result.posterUrl,
+      backdropUrl,
+      overview,
+      rating,
+      directors,
+      cast,
+      genres,
       descriptionHtml,
       nfo,
+      mediaInfo,
       comments,
       c411PageUrl
     };

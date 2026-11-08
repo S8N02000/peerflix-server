@@ -121,7 +121,7 @@ export interface MediaProbeDTO {
 }
 
 export interface C411SearchResultDTO {
-  id: string; // Hash SHA-256 court généré côté serveur (jamais l'URL avec apikey !)
+  id: string;
   title: string;
   size: number;
   pubDate: string;
@@ -130,10 +130,13 @@ export interface C411SearchResultDTO {
   completed?: number;
   categoryId?: string;
   categoryName?: string;
+  subcategoryId?: string;
+  subcategoryName?: string;
   isFreeleech: boolean;
   infoHash?: string;
   alreadyAdded?: boolean;
   posterUrl?: string;
+  backdropUrl?: string;
   season?: number;
   episode?: number;
   resolution?: string;
@@ -148,6 +151,7 @@ export interface C411SearchResultDTO {
   torrentId?: string;
   commentsCount?: number;
   description?: string;
+  overview?: string;
 }
 
 export interface C411CommentDTO {
@@ -156,22 +160,32 @@ export interface C411CommentDTO {
   avatarUrl?: string;
   date: string;
   content: string;
+  likeCount?: number;
 }
 
 export interface C411TorrentDetailsDTO {
   id: string;
   torrentId?: string;
+  infoHash?: string;
   title: string;
   cleanTitle?: string;
   categoryName?: string;
+  subcategoryName?: string;
   size: number;
   pubDate?: string;
   seeders: number;
   leechers: number;
   isFreeleech: boolean;
   posterUrl?: string;
+  backdropUrl?: string;
   descriptionHtml: string;
   nfo?: string;
+  mediaInfo?: string;
+  overview?: string;
+  rating?: number;
+  directors?: string[];
+  cast?: Array<{ name: string; character?: string }>;
+  genres?: string[];
   comments: C411CommentDTO[];
   c411PageUrl?: string;
 }

@@ -153,11 +153,19 @@ export async function fetchC411Status(): Promise<import('../../shared/types.js')
 
 export async function searchC411(
   query = '',
-  cat = ''
+  cat = '',
+  filters?: Record<string, string | number | undefined>
 ): Promise<{ results: import('../../shared/types.js').C411SearchResultDTO[] }> {
   const params = new URLSearchParams();
   if (query) params.set('q', query);
-  if (cat) params.set('cat', cat);
+  if (cat) params.set('category', cat);
+  if (filters) {
+    for (const [key, val] of Object.entries(filters)) {
+      if (val !== undefined && val !== null && String(val).trim() !== '') {
+        params.set(key, String(val).trim());
+      }
+    }
+  }
   const res = await authFetch(`/c411/search?${params.toString()}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: 'Search failed' }));

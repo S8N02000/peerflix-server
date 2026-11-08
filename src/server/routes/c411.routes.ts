@@ -15,13 +15,48 @@ export function createC411Router(store: TorrentStore, client = new C411Client())
     }
   });
 
-  // GET /c411/search?q=...&cat=...
+  // GET /c411/search?q=...&category=...&subcat=...&resolution=...
   router.get('/c411/search', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const query = (req.query.q as string) || '';
-      const cat = (req.query.cat as string) || '';
+      const query = (req.query.q as string) || (req.query.name as string) || '';
+      const category = (req.query.category as string) || (req.query.cat as string) || '';
+      const subcat = (req.query.subcat as string) || '';
+      const resolution = (req.query.resolution as string) || '';
+      const source = (req.query.source as string) || '';
+      const codec = (req.query.codec as string) || '';
+      const audioType = (req.query.audioType as string) || '';
+      const hdr = (req.query.hdr as string) || '';
+      const lang = (req.query.lang as string) || '';
+      const subtitles = (req.query.subtitles as string) || '';
+      const year = (req.query.year as string) || '';
+      const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+      const perPage = req.query.perPage ? parseInt(req.query.perPage as string, 10) : 50;
+      const sortBy = (req.query.sortBy as string) || 'createdAt';
+      const sortOrder = (req.query.sortOrder as string) || 'desc';
 
-      const results = await client.searchTorznab(query, cat);
+      let results: import('../../shared/types.js').C411SearchResultDTO[] = [];
+      try {
+        results = await client.searchNative({
+          name: query,
+          category,
+          subcat,
+          resolution,
+          source,
+          codec,
+          audioType,
+          hdr,
+          lang,
+          subtitles,
+          year,
+          page,
+          perPage,
+          sortBy,
+          sortOrder
+        });
+      } catch (nativeErr) {
+        // Fallback to Torznab if native API fails
+        results = await client.searchTorznab(query, category);
+      }
 
       // Check if any results are already loaded in store
       const activeHashes = new Set(store.list().map((t) => t.infoHash.toLowerCase()));

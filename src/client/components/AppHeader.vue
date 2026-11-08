@@ -19,7 +19,7 @@ const emit = defineEmits<{
   (e: 'open-tv-guide'): void;
 }>();
 
-import { generateMemorablePseudo, saveCurrentUser, saveIsAdmin, saveAdminToken } from '../utils/auth-url.js';
+import { generateMemorablePseudo, saveCurrentUser, saveIsAdmin, saveAdminToken, saveAuthCredentials } from '../utils/auth-url.js';
 import { verifyAdminPassword } from '../services/api.js';
 
 const copied = ref(false);
@@ -29,12 +29,14 @@ const newIsAdmin = ref(Boolean(props.isAdmin));
 const adminPasswordInput = ref('');
 const adminError = ref('');
 const isVerifyingAdmin = ref(false);
+const httpAuthInput = ref(getSavedAuthCredentials());
 
 const openUserModal = () => {
   newUserName.value = props.currentUser || 'Moi';
   newIsAdmin.value = Boolean(props.isAdmin);
   adminPasswordInput.value = '';
   adminError.value = '';
+  httpAuthInput.value = getSavedAuthCredentials();
   showUserModal.value = true;
 };
 
@@ -67,6 +69,7 @@ const saveUserSettings = async () => {
   const cleanUser = newUserName.value.trim() || generateMemorablePseudo();
   saveCurrentUser(cleanUser);
   emit('update:currentUser', cleanUser);
+  saveAuthCredentials(httpAuthInput.value.trim());
   showUserModal.value = false;
 };
 
@@ -325,6 +328,21 @@ const copyPlaylistUrl = async () => {
               />
               <span v-if="adminError" class="admin-error-msg">⚠️ {{ adminError }}</span>
             </div>
+          </div>
+
+          <div class="form-group http-auth-box">
+            <label for="http-auth-input">🔐 Identifiants HTTP (Reverse Proxy / Basic Auth Mobile) :</label>
+            <input
+              id="http-auth-input"
+              v-model="httpAuthInput"
+              type="text"
+              class="form-input"
+              placeholder="ex: login:motdepasse"
+              autocomplete="off"
+            />
+            <span class="form-hint">
+              Enregistre vos identifiants dans votre navigateur (iPhone/Android). Résout définitivement la popup de mot de passe qui s'affiche en boucle sur mobile !
+            </span>
           </div>
         </div>
         <div class="user-modal-footer">
@@ -785,10 +803,64 @@ const copyPlaylistUrl = async () => {
 
 @media (max-width: 768px) {
   .app-header {
-    padding: 0.5rem 1rem;
+    padding: 0.5rem 0.75rem;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+  .header-left {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .header-right {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+  }
+  .c411-header-widget {
+    grid-column: span 2;
+    justify-content: center;
+    width: 100%;
   }
   .disk-gauge-container {
-    min-width: 100%;
+    grid-column: span 2;
+    min-width: 0;
+    width: 100%;
+    padding: 0.35rem 0.6rem;
+  }
+  .clean-badge {
+    font-size: 0.75rem;
+    padding: 0.4rem 0.5rem;
+    justify-content: center;
+    text-align: center;
+  }
+  .btn-user-profile {
+    font-size: 0.75rem;
+    padding: 0.4rem 0.5rem;
+    justify-content: center;
+  }
+  .btn-tv-guide {
+    font-size: 0.75rem;
+    padding: 0.4rem 0.5rem;
+    justify-content: center;
+  }
+  .btn-group-m3u {
+    grid-column: span 2;
+    display: flex;
+    width: 100%;
+  }
+  .btn-m3u-global {
+    flex: 1;
+    justify-content: center;
+    text-align: center;
+  }
+  .btn-m3u-copy {
+    flex-shrink: 0;
+  }
+  .user-modal-card {
+    max-width: 95vw;
+    width: 100%;
   }
 }
 </style>

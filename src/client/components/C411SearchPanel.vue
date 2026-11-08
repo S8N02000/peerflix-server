@@ -5,6 +5,27 @@ import { searchC411, addC411Torrent } from '../services/api.js';
 import { formatBytes } from '../composables/useTorrents.js';
 import { parseReleaseMetadata } from '../utils/release-parser.js';
 import C411TorrentDetailsModal from './C411TorrentDetailsModal.vue';
+import C411ResultRow from './c411/C411ResultRow.vue';
+import {
+  C411_STORAGE_PRESETS_KEY,
+  C411_CATEGORIES as categories,
+  C411_SUBCAT_OPTIONS_MAP as subCatOptionsMap,
+  C411_RESOLUTION_OPTIONS as resolutionOptions,
+  C411_VIDEO_SOURCE_OPTIONS as videoSourceOptions,
+  C411_HDR_OPTIONS as hdrOptions,
+  C411_AUDIO_OPTIONS as audioOptions,
+  C411_CODEC_OPTIONS as codecOptions,
+  C411_VIDEO_LANGUAGE_OPTIONS as videoLanguageOptions,
+  C411_SUBTITLE_OPTIONS as subtitleOptions,
+  C411_SEASON_OPTIONS as seasonOptions,
+  C411_YEAR_OPTIONS as yearOptions,
+  C411_EBOOK_FORMAT_OPTIONS as ebookFormatOptions,
+  C411_GENERAL_LANGUAGE_OPTIONS as generalLanguageOptions,
+  C411_AUDIO_FORMAT_OPTIONS as audioFormatOptions,
+  C411_AUDIO_SOURCE_OPTIONS as audioSourceOptions,
+  C411_PRINT3D_FORMAT_OPTIONS as print3dFormatOptions,
+  C411_DEFAULT_PRESETS,
+} from '../utils/c411-constants.js';
 
 const props = defineProps<{
   c411Profile?: C411ProfileDTO | null;
@@ -49,129 +70,20 @@ const filterHdr = ref('');
 const filterAudio = ref('');
 const filterCodec = ref('');
 const filterYear = ref('');
-const filterFreeleechOnly = ref(false);
+const filterFormat = ref('');
 
 // Preset filters saved in localStorage
 const savedPresets = ref<C411SavedFilter[]>([]);
 const showPresetModal = ref(false);
 const presetNameInput = ref('');
-const STORAGE_PRESETS_KEY = 'peerflix_c411_saved_filters';
+const STORAGE_PRESETS_KEY = C411_STORAGE_PRESETS_KEY;
 
 // Image load tracking
 const brokenImages = ref<Set<string>>(new Set());
 
-// Category pills matching C411
-const categories = [
-  { label: 'Tout', cat: '', dotColor: '#10b981' },
-  { label: 'Films & Vidéos', cat: '2000,5000', dotColor: '#38bdf8' },
-  { label: 'Films', cat: '2000', dotColor: '#60a5fa' },
-  { label: 'Séries TV', cat: '5000', dotColor: '#818cf8' },
-  { label: 'Anime', cat: '2060,5070', dotColor: '#ec4899' },
-  { label: 'Audio / Musique', cat: '3010', dotColor: '#a855f7' },
-  { label: 'Jeux Vidéo', cat: '4050', dotColor: '#06b6d4' },
-  { label: 'Applications', cat: '4000', dotColor: '#14b8a6' },
-  { label: 'eBooks / BD', cat: '7020,7030', dotColor: '#f97316' },
-];
-
-// Dropdown options
-const subCatOptions = [
-  { label: 'Sous-catégorie', value: '' },
-  { label: 'Séries TV', value: 'Séries TV' },
-  { label: 'Films', value: 'Films' },
-  { label: 'Animation / Anime', value: 'Anime' },
-  { label: 'Documentaires', value: 'Documentaires' },
-  { label: 'Spectacles / Concerts', value: 'Spectacles' },
-];
-
-const seasonOptions = [
-  { label: 'Saison', value: '' },
-  { label: 'Saison 1', value: 'S01' },
-  { label: 'Saison 2', value: 'S02' },
-  { label: 'Saison 3', value: 'S03' },
-  { label: 'Saison 4', value: 'S04' },
-  { label: 'Saison 5', value: 'S05' },
-  { label: 'Saison 6', value: 'S06' },
-  { label: 'Saison 7', value: 'S07' },
-  { label: 'Saison 8', value: 'S08' },
-  { label: 'Saison 9', value: 'S09' },
-  { label: 'Saison 10+', value: 'S10+' },
-];
-
-const resolutionOptions = [
-  { label: 'Résolution', value: '' },
-  { label: '4K / 2160p', value: '2160p' },
-  { label: '1080p FHD', value: '1080p' },
-  { label: '720p HD', value: '720p' },
-  { label: 'SD / 576p', value: 'sd' },
-];
-
-const languageOptions = [
-  { label: 'Langue', value: '' },
-  { label: 'MULTI', value: 'multi' },
-  { label: 'MULTI VFF', value: 'multi vff' },
-  { label: 'MULTI VFQ', value: 'multi vfq' },
-  { label: 'VFF / TrueFrench', value: 'vff' },
-  { label: 'VFQ', value: 'vfq' },
-  { label: 'VOSTFR', value: 'vostfr' },
-  { label: 'Français (Tous)', value: 'fr' },
-];
-
-const subtitleOptions = [
-  { label: 'Sous-titres', value: '' },
-  { label: 'Français', value: 'français' },
-  { label: 'Forcés', value: 'forcés' },
-  { label: 'Multi', value: 'multi' },
-  { label: 'VOSTFR', value: 'vostfr' },
-];
-
-const sourceOptions = [
-  { label: 'Source', value: '' },
-  { label: 'WEB-DL', value: 'web-dl' },
-  { label: 'WEBRip', value: 'webrip' },
-  { label: 'BluRay', value: 'bluray' },
-  { label: 'Remux', value: 'remux' },
-  { label: 'HDTV', value: 'hdtv' },
-];
-
-const hdrOptions = [
-  { label: 'HDR', value: '' },
-  { label: 'DV HDR10+', value: 'dv hdr10+' },
-  { label: 'DV HDR', value: 'dv hdr' },
-  { label: 'Dolby Vision', value: 'dolby vision' },
-  { label: 'HDR10+', value: 'hdr10+' },
-  { label: 'HDR10', value: 'hdr10' },
-];
-
-const audioOptions = [
-  { label: 'Audio', value: '' },
-  { label: 'TrueHD Atmos', value: 'atmos' },
-  { label: 'DTS-HD MA', value: 'dts-hd' },
-  { label: 'E-AC3 Atmos / DDP', value: 'e-ac3' },
-  { label: 'AC3 5.1 / DD', value: 'ac3' },
-  { label: 'FLAC Lossless', value: 'flac' },
-  { label: 'AAC', value: 'aac' },
-];
-
-const codecOptions = [
-  { label: 'Codec', value: '' },
-  { label: 'HEVC / x265', value: 'hevc' },
-  { label: 'AV1', value: 'av1' },
-  { label: 'H.264 / x264', value: 'h.264' },
-];
-
-const yearOptions = [
-  { label: 'Année', value: '' },
-  { label: '2026', value: '2026' },
-  { label: '2025', value: '2025' },
-  { label: '2024', value: '2024' },
-  { label: '2023', value: '2023' },
-  { label: '2022', value: '2022' },
-  { label: '2021', value: '2021' },
-  { label: '2020', value: '2020' },
-  { label: '2019', value: '2019' },
-  { label: '2015 - 2018', value: '2015-2018' },
-  { label: '< 2015', value: '< 2015' },
-];
+const currentSubCatOptions = computed(() => {
+  return subCatOptionsMap[selectedCat.value] || [];
+});
 
 // Metadata cache
 const metaCache = new Map<string, ReturnType<typeof parseReleaseMetadata>>();
@@ -184,12 +96,25 @@ const getMeta = (item: C411SearchResultDTO) => {
   return m;
 };
 
-// API Search
+// API Search with dynamic parameters
 const performSearch = async () => {
   isLoading.value = true;
   errorMessage.value = null;
   try {
-    const res = await searchC411(searchQuery.value, selectedCat.value);
+    const apiFilters: Record<string, string> = {};
+    if (filterSubCat.value) apiFilters.subcat = filterSubCat.value;
+    if (filterResolution.value) apiFilters.resolution = filterResolution.value;
+    if (filterLanguage.value) apiFilters.lang = filterLanguage.value;
+    if (filterSubtitles.value) apiFilters.subtitles = filterSubtitles.value;
+    if (filterSource.value) apiFilters.source = filterSource.value;
+    if (filterHdr.value) apiFilters.hdr = filterHdr.value;
+    if (filterAudio.value) apiFilters.audioType = filterAudio.value;
+    if (filterCodec.value) apiFilters.codec = filterCodec.value;
+    if (filterYear.value && !filterYear.value.includes('<') && !filterYear.value.includes('-')) {
+      apiFilters.year = filterYear.value;
+    }
+
+    const res = await searchC411(searchQuery.value, selectedCat.value, apiFilters);
     rawResults.value = res.results;
   } catch (err: any) {
     errorMessage.value = err.message || 'Échec de la recherche C411';
@@ -198,16 +123,33 @@ const performSearch = async () => {
   }
 };
 
-const selectCategory = (cat: string) => {
+const isCategoryActive = (c: { cat: string; subcat?: string }) => {
+  if (c.cat !== selectedCat.value) return false;
+  if (c.subcat) {
+    return filterSubCat.value === c.subcat;
+  }
+  if (c.cat === '1') {
+    return !filterSubCat.value;
+  }
+  return true;
+};
+
+const selectCategory = (cat: string, subcat?: string) => {
   selectedCat.value = cat;
+  filterSubCat.value = subcat || '';
+  filterFormat.value = '';
   performSearch();
 };
 
-const handleAdd = async (item: C411SearchResultDTO) => {
+const onFilterChange = () => {
+  performSearch();
+};
+
+const handleAdd = async (item: C411SearchResultDTO, isPrivate: boolean = false) => {
   if (item.alreadyAdded || addedIds.value.has(item.id)) return;
   addingId.value = item.id;
   try {
-    const res = await addC411Torrent(item.id);
+    const res = await addC411Torrent(item.id, { isPrivate });
     addedIds.value.add(item.id);
     emit('torrent-added', res.infoHash);
   } catch (err: any) {
@@ -217,10 +159,10 @@ const handleAdd = async (item: C411SearchResultDTO) => {
   }
 };
 
-const handleAddFromModal = async (id: string) => {
+const handleAddFromModal = async (id: string, isPrivate: boolean = false) => {
   const item = rawResults.value.find((r) => r.id === id) || selectedItemForModal.value;
   if (item) {
-    await handleAdd(item);
+    await handleAdd(item, isPrivate);
   }
 };
 
@@ -229,18 +171,22 @@ const filteredResults = computed(() => {
   return rawResults.value.filter((item) => {
     const meta = getMeta(item);
 
-    // Freeleech
-    if (filterFreeleechOnly.value && !item.isFreeleech) {
-      return false;
-    }
-
     // Sous-catégorie
     if (filterSubCat.value) {
-      const targetSub = filterSubCat.value.toLowerCase();
+      const targetSub = filterSubCat.value;
       const matchCat =
-        (item.categoryName && item.categoryName.toLowerCase().includes(targetSub)) ||
-        (meta.subCat && meta.subCat.toLowerCase().includes(targetSub));
+        (item.subcategoryId && item.subcategoryId === targetSub) ||
+        (item.subcategoryName && item.subcategoryName.toLowerCase().includes(targetSub.toLowerCase())) ||
+        (item.categoryName && item.categoryName.toLowerCase().includes(targetSub.toLowerCase())) ||
+        (meta.subCat && meta.subCat.toLowerCase().includes(targetSub.toLowerCase()));
       if (!matchCat) return false;
+    }
+
+    // Format (Ebook / 3D)
+    if (filterFormat.value) {
+      const targetFmt = filterFormat.value.toLowerCase();
+      const rawLower = item.title.toLowerCase();
+      if (!rawLower.includes(targetFmt)) return false;
     }
 
     // Saison
@@ -284,23 +230,18 @@ const filteredResults = computed(() => {
     // Langue
     if (filterLanguage.value) {
       const targetLang = filterLanguage.value.toLowerCase();
+      const itemLang = (item.language || '').toLowerCase();
       const rawLower = item.title.toLowerCase();
       if (targetLang === 'multi') {
-        if (!rawLower.includes('multi')) return false;
-      } else if (targetLang === 'multi vff') {
-        if (!rawLower.includes('multi') || (!rawLower.includes('vff') && !rawLower.includes('french'))) return false;
-      } else if (targetLang === 'multi vfq') {
-        if (!rawLower.includes('multi') || !rawLower.includes('vfq')) return false;
+        if (!itemLang.includes('multi') && !rawLower.includes('multi')) return false;
       } else if (targetLang === 'vff') {
-        if (!rawLower.includes('vff') && !rawLower.includes('french') && !rawLower.includes('truefrench')) return false;
-      } else if (targetLang === 'truefrench') {
-        if (!rawLower.includes('truefrench')) return false;
+        if (!itemLang.includes('vff') && !itemLang.includes('french') && !rawLower.includes('vff') && !rawLower.includes('french') && !rawLower.includes('truefrench')) return false;
       } else if (targetLang === 'vfq') {
-        if (!rawLower.includes('vfq')) return false;
+        if (!itemLang.includes('vfq') && !rawLower.includes('vfq')) return false;
       } else if (targetLang === 'vostfr') {
-        if (!rawLower.includes('vostfr')) return false;
-      } else if (targetLang === 'fr') {
-        if (!rawLower.includes('french') && !rawLower.includes('vff') && !rawLower.includes('vfq') && !rawLower.includes('truefrench')) return false;
+        if (!itemLang.includes('vostfr') && !rawLower.includes('vostfr')) return false;
+      } else if (targetLang === 'vo') {
+        if (!itemLang.includes('vo') && !itemLang.includes('anglais') && !rawLower.includes('english') && !rawLower.includes('vostfr')) return false;
       }
     }
 
@@ -309,15 +250,16 @@ const filteredResults = computed(() => {
       const targetSub = filterSubtitles.value.toLowerCase();
       const rawLower = item.title.toLowerCase();
       if (targetSub === 'vostfr' && !rawLower.includes('vostfr')) return false;
-      if (targetSub === 'forcés' && !rawLower.includes('force') && !rawLower.includes('forced')) return false;
+      if ((targetSub === 'forced' || targetSub === 'forcés') && !rawLower.includes('force') && !rawLower.includes('forced')) return false;
       if (targetSub === 'multi' && !rawLower.includes('multi')) return false;
-      if (targetSub === 'français' && !rawLower.includes('french') && !rawLower.includes('stfr') && !rawLower.includes('vostfr')) return false;
+      if ((targetSub === 'french' || targetSub === 'français') && !rawLower.includes('french') && !rawLower.includes('stfr') && !rawLower.includes('vostfr')) return false;
+      if ((targetSub === 'english' || targetSub === 'anglais') && !rawLower.includes('english') && !rawLower.includes('sub')) return false;
     }
 
     // Source
     if (filterSource.value) {
       const targetSrc = filterSource.value.toLowerCase();
-      const itemSrc = (meta.source || '').toLowerCase();
+      const itemSrc = (item.source || meta.source || '').toLowerCase();
       const rawLower = item.title.toLowerCase();
       if (!itemSrc.includes(targetSrc) && !rawLower.includes(targetSrc)) {
         return false;
@@ -327,36 +269,38 @@ const filteredResults = computed(() => {
     // HDR
     if (filterHdr.value) {
       const targetHdr = filterHdr.value.toLowerCase();
+      const itemHdr = (item.hdr || '').toLowerCase();
       const rawLower = item.title.toLowerCase();
-      if (targetHdr.includes('dv') && !rawLower.includes('dv') && !rawLower.includes('dolby.vision')) return false;
-      if (targetHdr.includes('hdr10+') && !rawLower.includes('hdr10+') && !rawLower.includes('hdr10plus')) return false;
-      if (targetHdr === 'hdr10' && !rawLower.includes('hdr10') && !rawLower.includes('hdr')) return false;
-      if (targetHdr === 'dolby vision' && !rawLower.includes('dolby.vision') && !rawLower.includes('dovi')) return false;
+      if (targetHdr.includes('dolby vision') && !itemHdr.includes('vision') && !rawLower.includes('dolby.vision') && !rawLower.includes('dovi') && !rawLower.includes('dv')) return false;
+      if (targetHdr.includes('hdr10+') && !itemHdr.includes('10+') && !rawLower.includes('hdr10+') && !rawLower.includes('hdr10plus')) return false;
+      if (targetHdr === 'hdr10' && !itemHdr.includes('hdr10') && !rawLower.includes('hdr10') && !rawLower.includes('hdr')) return false;
     }
 
     // Audio
     if (filterAudio.value) {
       const targetAudio = filterAudio.value.toLowerCase();
+      const itemAudio = (item.audio || '').toLowerCase();
       const rawLower = item.title.toLowerCase();
-      if (targetAudio.includes('atmos') && !rawLower.includes('atmos')) return false;
-      if (targetAudio.includes('dts-hd') && !rawLower.includes('dts-hd')) return false;
-      if (targetAudio.includes('truehd') && !rawLower.includes('truehd')) return false;
-      if (targetAudio.includes('e-ac3') && !rawLower.includes('eac3') && !rawLower.includes('ddp')) return false;
-      if (targetAudio.includes('ac3') && !rawLower.includes('ac3') && !rawLower.includes('dd5.1')) return false;
-      if (targetAudio.includes('flac') && !rawLower.includes('flac')) return false;
-      if (targetAudio.includes('aac') && !rawLower.includes('aac')) return false;
+      if (targetAudio.includes('atmos') && !itemAudio.includes('atmos') && !rawLower.includes('atmos')) return false;
+      if (targetAudio.includes('lossless') && !itemAudio.includes('lossless') && !itemAudio.includes('flac') && !rawLower.includes('flac') && !rawLower.includes('truehd')) return false;
+      if (targetAudio.includes('dts') && !itemAudio.includes('dts') && !rawLower.includes('dts')) return false;
+      if (targetAudio.includes('eac3') && !itemAudio.includes('eac3') && !rawLower.includes('eac3') && !rawLower.includes('ddp')) return false;
+      if (targetAudio.includes('ac3') && !itemAudio.includes('ac3') && !rawLower.includes('ac3') && !rawLower.includes('dd5.1')) return false;
+      if (targetAudio.includes('flac') && !itemAudio.includes('flac') && !rawLower.includes('flac')) return false;
+      if (targetAudio.includes('mp3') && !itemAudio.includes('mp3') && !rawLower.includes('mp3')) return false;
     }
 
     // Codec
     if (filterCodec.value) {
       const targetCodec = filterCodec.value.toLowerCase();
+      const itemCodec = (item.codec || '').toLowerCase();
       const rawLower = item.title.toLowerCase();
       if (targetCodec.includes('hevc')) {
-        if (!rawLower.includes('hevc') && !rawLower.includes('x265') && !rawLower.includes('h.265') && !rawLower.includes('h265')) return false;
+        if (!itemCodec.includes('hevc') && !itemCodec.includes('x265') && !rawLower.includes('hevc') && !rawLower.includes('x265') && !rawLower.includes('h.265') && !rawLower.includes('h265')) return false;
       } else if (targetCodec.includes('av1')) {
-        if (!rawLower.includes('av1')) return false;
-      } else if (targetCodec.includes('h.264')) {
-        if (!rawLower.includes('x264') && !rawLower.includes('h.264') && !rawLower.includes('h264') && !rawLower.includes('avc')) return false;
+        if (!itemCodec.includes('av1') && !rawLower.includes('av1')) return false;
+      } else if (targetCodec.includes('x264') || targetCodec.includes('h.264')) {
+        if (!itemCodec.includes('264') && !rawLower.includes('x264') && !rawLower.includes('h.264') && !rawLower.includes('h264') && !rawLower.includes('avc')) return false;
       }
     }
 
@@ -393,7 +337,11 @@ const sortedResults = computed(() => {
 // Active tags for quick removal
 const activeTags = computed(() => {
   const tags: Array<{ key: string; label: string }> = [];
-  if (filterSubCat.value) tags.push({ key: 'subCat', label: `Sous-catégorie : ${filterSubCat.value}` });
+  if (filterSubCat.value) {
+    const found = currentSubCatOptions.value.find((o) => o.value === filterSubCat.value);
+    tags.push({ key: 'subCat', label: `Sous-catégorie : ${found?.label || filterSubCat.value}` });
+  }
+  if (filterFormat.value) tags.push({ key: 'format', label: `Format : ${filterFormat.value.toUpperCase()}` });
   if (filterSeason.value) tags.push({ key: 'season', label: `Saison : ${filterSeason.value}` });
   if (filterResolution.value) tags.push({ key: 'resolution', label: `Résolution : ${filterResolution.value.toUpperCase()}` });
   if (filterLanguage.value) tags.push({ key: 'language', label: `Langue : ${filterLanguage.value.toUpperCase()}` });
@@ -403,12 +351,12 @@ const activeTags = computed(() => {
   if (filterAudio.value) tags.push({ key: 'audio', label: `Audio : ${filterAudio.value.toUpperCase()}` });
   if (filterCodec.value) tags.push({ key: 'codec', label: `Codec : ${filterCodec.value.toUpperCase()}` });
   if (filterYear.value) tags.push({ key: 'year', label: `Année : ${filterYear.value}` });
-  if (filterFreeleechOnly.value) tags.push({ key: 'freeleech', label: '⚡ Freeleech seulement' });
   return tags;
 });
 
 const removeTag = (key: string) => {
   if (key === 'subCat') filterSubCat.value = '';
+  if (key === 'format') filterFormat.value = '';
   if (key === 'season') filterSeason.value = '';
   if (key === 'resolution') filterResolution.value = '';
   if (key === 'language') filterLanguage.value = '';
@@ -418,11 +366,12 @@ const removeTag = (key: string) => {
   if (key === 'audio') filterAudio.value = '';
   if (key === 'codec') filterCodec.value = '';
   if (key === 'year') filterYear.value = '';
-  if (key === 'freeleech') filterFreeleechOnly.value = false;
+  onFilterChange();
 };
 
 const clearAllFilters = () => {
   filterSubCat.value = '';
+  filterFormat.value = '';
   filterSeason.value = '';
   filterResolution.value = '';
   filterLanguage.value = '';
@@ -432,7 +381,7 @@ const clearAllFilters = () => {
   filterAudio.value = '';
   filterCodec.value = '';
   filterYear.value = '';
-  filterFreeleechOnly.value = false;
+  onFilterChange();
 };
 
 // Preset Management
@@ -444,10 +393,11 @@ const loadPresetsFromStorage = () => {
     } else {
       // Default initial presets
       savedPresets.value = [
-        { id: '1', name: '🎬 Films 4K HDR', resolution: '2160p', hdr: 'hdr10' },
-        { id: '2', name: '📺 Séries TV MULTI', subCat: 'Séries TV', language: 'multi' },
-        { id: '3', name: '💎 Remux 4K', source: 'remux', resolution: '2160p' },
-        { id: '4', name: '⚡ Freeleech', freeleechOnly: true },
+        { id: '1', name: '🎬 Films 4K HDR', cat: '1', resolution: '2160p', hdr: 'HDR10' },
+        { id: '2', name: '📺 Séries TV MULTI', cat: '1', subCat: '7', language: 'MULTI' },
+        { id: '3', name: '💎 Remux 4K', cat: '1', source: 'Remux', resolution: '2160p' },
+        { id: '4', name: '📚 Ebooks & BD', cat: '2' },
+        { id: '5', name: '🎵 Musique Lossless', cat: '3', audio: 'lossless' },
       ];
       localStorage.setItem(STORAGE_PRESETS_KEY, JSON.stringify(savedPresets.value));
     }
@@ -467,11 +417,10 @@ const applyPreset = (preset: C411SavedFilter) => {
   if (preset.audio !== undefined) filterAudio.value = preset.audio;
   if (preset.codec !== undefined) filterCodec.value = preset.codec;
   if (preset.year !== undefined) filterYear.value = preset.year;
-  if (preset.freeleechOnly !== undefined) filterFreeleechOnly.value = preset.freeleechOnly;
   if (preset.cat !== undefined && preset.cat !== selectedCat.value) {
     selectedCat.value = preset.cat;
-    performSearch();
   }
+  performSearch();
 };
 
 const saveCurrentAsPreset = () => {
@@ -490,7 +439,6 @@ const saveCurrentAsPreset = () => {
     audio: filterAudio.value,
     codec: filterCodec.value,
     year: filterYear.value,
-    freeleechOnly: filterFreeleechOnly.value,
   };
 
   savedPresets.value.push(newPreset);
@@ -593,11 +541,11 @@ onMounted(() => {
     <div class="category-pills-bar">
       <button
         v-for="cat in categories"
-        :key="cat.cat"
+        :key="cat.label"
         type="button"
         class="cat-pill-btn"
-        :class="{ active: selectedCat === cat.cat }"
-        @click="selectCategory(cat.cat)"
+        :class="{ active: isCategoryActive(cat) }"
+        @click="selectCategory(cat.cat, cat.subcat)"
       >
         <span class="pill-dot" :style="{ backgroundColor: cat.dotColor }"></span>
         <span>{{ cat.label }}</span>
@@ -656,87 +604,161 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Complete C411 Dropdowns Filter Grid -->
+    <!-- Dynamic Category-Specific Filter Controls Grid -->
     <div class="filter-controls-grid">
-      <!-- Sous-catégorie -->
-      <select v-model="filterSubCat" class="c411-select" title="Sous-catégorie">
-        <option v-for="opt in subCatOptions" :key="opt.value" :value="opt.value">
-          {{ opt.label }}
-        </option>
-      </select>
+      <!-- 1. Tout ('') -->
+      <template v-if="selectedCat === ''">
+        <select v-model="filterYear" class="c411-select" title="Année" @change="onFilterChange">
+          <option v-for="opt in yearOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <div class="cat-hint-pill">
+          💡 Sélectionnez une catégorie pour filtrer par résolution, source, codecs, plateforme...
+        </div>
+      </template>
 
-      <!-- Saison -->
-      <select v-model="filterSeason" class="c411-select" title="Saison">
-        <option v-for="opt in seasonOptions" :key="opt.value" :value="opt.value">
-          {{ opt.label }}
-        </option>
-      </select>
+      <!-- 2. Films & Vidéos ('1') -->
+      <template v-else-if="selectedCat === '1'">
+        <!-- Sous-catégorie -->
+        <select v-model="filterSubCat" class="c411-select" title="Sous-catégorie" @change="onFilterChange">
+          <option v-for="opt in currentSubCatOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Résolution -->
+        <select v-model="filterResolution" class="c411-select" title="Résolution" @change="onFilterChange">
+          <option v-for="opt in resolutionOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Source -->
+        <select v-model="filterSource" class="c411-select" title="Source" @change="onFilterChange">
+          <option v-for="opt in videoSourceOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- HDR -->
+        <select v-model="filterHdr" class="c411-select" title="HDR" @change="onFilterChange">
+          <option v-for="opt in hdrOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Audio -->
+        <select v-model="filterAudio" class="c411-select" title="Audio" @change="onFilterChange">
+          <option v-for="opt in audioOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Codec -->
+        <select v-model="filterCodec" class="c411-select" title="Codec" @change="onFilterChange">
+          <option v-for="opt in codecOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Langue -->
+        <select v-model="filterLanguage" class="c411-select" title="Langue audio" @change="onFilterChange">
+          <option v-for="opt in videoLanguageOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Sous-titres -->
+        <select v-model="filterSubtitles" class="c411-select" title="Langue des sous-titres" @change="onFilterChange">
+          <option v-for="opt in subtitleOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Saison -->
+        <select v-model="filterSeason" class="c411-select" title="Saison" @change="onFilterChange">
+          <option v-for="opt in seasonOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Année -->
+        <select v-model="filterYear" class="c411-select" title="Année" @change="onFilterChange">
+          <option v-for="opt in yearOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+      </template>
 
-      <!-- Résolution -->
-      <select v-model="filterResolution" class="c411-select" title="Résolution">
-        <option v-for="opt in resolutionOptions" :key="opt.value" :value="opt.value">
-          {{ opt.label }}
-        </option>
-      </select>
+      <!-- 3. Ebook ('2') -->
+      <template v-else-if="selectedCat === '2'">
+        <!-- Sous-catégorie -->
+        <select v-model="filterSubCat" class="c411-select" title="Sous-catégorie" @change="onFilterChange">
+          <option v-for="opt in currentSubCatOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Format Ebook -->
+        <select v-model="filterFormat" class="c411-select" title="Format Ebook" @change="onFilterChange">
+          <option v-for="opt in ebookFormatOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Langue -->
+        <select v-model="filterLanguage" class="c411-select" title="Langue" @change="onFilterChange">
+          <option v-for="opt in generalLanguageOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Année -->
+        <select v-model="filterYear" class="c411-select" title="Année" @change="onFilterChange">
+          <option v-for="opt in yearOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+      </template>
 
-      <!-- Langue -->
-      <select v-model="filterLanguage" class="c411-select" title="Langue">
-        <option v-for="opt in languageOptions" :key="opt.value" :value="opt.value">
-          {{ opt.label }}
-        </option>
-      </select>
+      <!-- 4. Audio ('3') -->
+      <template v-else-if="selectedCat === '3'">
+        <!-- Sous-catégorie -->
+        <select v-model="filterSubCat" class="c411-select" title="Sous-catégorie" @change="onFilterChange">
+          <option v-for="opt in currentSubCatOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Format Audio -->
+        <select v-model="filterAudio" class="c411-select" title="Format Audio" @change="onFilterChange">
+          <option v-for="opt in audioFormatOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Source -->
+        <select v-model="filterSource" class="c411-select" title="Source" @change="onFilterChange">
+          <option v-for="opt in audioSourceOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Année -->
+        <select v-model="filterYear" class="c411-select" title="Année" @change="onFilterChange">
+          <option v-for="opt in yearOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+      </template>
 
-      <!-- Sous-titres -->
-      <select v-model="filterSubtitles" class="c411-select" title="Sous-titres">
-        <option v-for="opt in subtitleOptions" :key="opt.value" :value="opt.value">
-          {{ opt.label }}
-        </option>
-      </select>
+      <!-- 5. Applications ('4') -->
+      <template v-else-if="selectedCat === '4'">
+        <!-- Sous-catégorie (Plateforme) -->
+        <select v-model="filterSubCat" class="c411-select" title="Plateforme / OS" @change="onFilterChange">
+          <option v-for="opt in currentSubCatOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Langue -->
+        <select v-model="filterLanguage" class="c411-select" title="Langue" @change="onFilterChange">
+          <option v-for="opt in generalLanguageOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Année -->
+        <select v-model="filterYear" class="c411-select" title="Année" @change="onFilterChange">
+          <option v-for="opt in yearOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+      </template>
 
-      <!-- Source -->
-      <select v-model="filterSource" class="c411-select" title="Source">
-        <option v-for="opt in sourceOptions" :key="opt.value" :value="opt.value">
-          {{ opt.label }}
-        </option>
-      </select>
+      <!-- 6. Jeux Vidéo ('5') -->
+      <template v-else-if="selectedCat === '5'">
+        <!-- Sous-catégorie (Plateforme) -->
+        <select v-model="filterSubCat" class="c411-select" title="Plateforme" @change="onFilterChange">
+          <option v-for="opt in currentSubCatOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Langue -->
+        <select v-model="filterLanguage" class="c411-select" title="Langue" @change="onFilterChange">
+          <option v-for="opt in generalLanguageOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Année -->
+        <select v-model="filterYear" class="c411-select" title="Année" @change="onFilterChange">
+          <option v-for="opt in yearOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+      </template>
 
-      <!-- HDR -->
-      <select v-model="filterHdr" class="c411-select" title="HDR">
-        <option v-for="opt in hdrOptions" :key="opt.value" :value="opt.value">
-          {{ opt.label }}
-        </option>
-      </select>
+      <!-- 7. Émulation ('6') -->
+      <template v-else-if="selectedCat === '6'">
+        <!-- Sous-catégorie -->
+        <select v-model="filterSubCat" class="c411-select" title="Type" @change="onFilterChange">
+          <option v-for="opt in currentSubCatOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Année -->
+        <select v-model="filterYear" class="c411-select" title="Année" @change="onFilterChange">
+          <option v-for="opt in yearOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+      </template>
 
-      <!-- Audio -->
-      <select v-model="filterAudio" class="c411-select" title="Audio">
-        <option v-for="opt in audioOptions" :key="opt.value" :value="opt.value">
-          {{ opt.label }}
-        </option>
-      </select>
-
-      <!-- Codec -->
-      <select v-model="filterCodec" class="c411-select" title="Codec">
-        <option v-for="opt in codecOptions" :key="opt.value" :value="opt.value">
-          {{ opt.label }}
-        </option>
-      </select>
-
-      <!-- Année -->
-      <select v-model="filterYear" class="c411-select" title="Année">
-        <option v-for="opt in yearOptions" :key="opt.value" :value="opt.value">
-          {{ opt.label }}
-        </option>
-      </select>
-
-      <!-- Freeleech Toggle Button -->
-      <button
-        type="button"
-        class="btn-freeleech-toggle"
-        :class="{ active: filterFreeleechOnly }"
-        @click="filterFreeleechOnly = !filterFreeleechOnly"
-      >
-        <span>⚡ Freeleech</span>
-      </button>
+      <!-- 8. Imprimante 3D ('10') -->
+      <template v-else-if="selectedCat === '10'">
+        <!-- Sous-catégorie -->
+        <select v-model="filterSubCat" class="c411-select" title="Type d'objet" @change="onFilterChange">
+          <option v-for="opt in currentSubCatOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Format 3D -->
+        <select v-model="filterFormat" class="c411-select" title="Format 3D" @change="onFilterChange">
+          <option v-for="opt in print3dFormatOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+        <!-- Année -->
+        <select v-model="filterYear" class="c411-select" title="Année" @change="onFilterChange">
+          <option v-for="opt in yearOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+      </template>
     </div>
 
     <!-- Active Filter Tags Bar with Removable Chips (Screenshot style) -->
@@ -829,118 +851,17 @@ onMounted(() => {
 
     <!-- Results List (Cards with Posters) -->
     <div v-else-if="sortedResults.length > 0" class="c411-results-list">
-      <div
+      <C411ResultRow
         v-for="item in sortedResults"
         :key="item.id"
-        class="c411-result-row"
-      >
-        <!-- Poster / Cover Image on the Left -->
-        <div class="result-poster-box clickable" title="Voir la fiche détaillée C411 (description & commentaires)" @click="openDetailsModal(item)">
-          <img
-            v-if="item.posterUrl && !brokenImages.has(item.id)"
-            :src="item.posterUrl"
-            :alt="item.title"
-            class="poster-img"
-            loading="lazy"
-            @error="handleImgError(item.id)"
-          />
-          <div v-else class="poster-placeholder">
-            <span class="placeholder-icon">{{ getCategoryIcon(item) }}</span>
-            <span class="placeholder-label">{{ getCategoryShortLabel(item) }}</span>
-          </div>
-        </div>
-
-        <!-- Center Metadata Information -->
-        <div class="result-center">
-          <!-- Row 1: Category badge + Clean Title + Season/Episode + Year + Freeleech -->
-          <div class="row-title">
-            <span v-if="item.categoryName" class="badge-cat">{{ item.categoryName }}</span>
-            <span class="item-clean-title clickable" title="Voir la fiche détaillée C411 (description & commentaires)" @click="openDetailsModal(item)">
-              {{ getMeta(item).cleanTitle }}
-            </span>
-            <span v-if="getMeta(item).seasonEpisodeLabel" class="badge-season-episode">
-              {{ getMeta(item).seasonEpisodeLabel }}
-            </span>
-            <span v-if="getMeta(item).year || item.year" class="badge-year">
-              {{ getMeta(item).year || item.year }}
-            </span>
-            <span v-if="item.isFreeleech" class="badge-freeleech">⚡ FREELEECH</span>
-          </div>
-
-          <!-- Row 2: Raw Release Name in Monospace Green (#10b981) -->
-          <div class="row-raw-release clickable" :title="item.title + ' (Cliquer pour voir la fiche)'" @click="openDetailsModal(item)">
-            {{ item.title }}
-          </div>
-
-          <!-- Row 3: Technical Badges parsed accurately -->
-          <div class="row-tech-badges">
-            <span
-              v-for="(badge, bIdx) in getMeta(item).badges"
-              :key="bIdx"
-              class="tech-badge"
-              :style="{ borderColor: badge.color, color: badge.color }"
-            >
-              {{ badge.label }}
-            </span>
-          </div>
-        </div>
-
-        <!-- Right Side: Stats, Peers & Action Button -->
-        <div class="result-right">
-          <!-- Size & Age -->
-          <div class="meta-size-age">
-            <span class="item-size font-mono">{{ formatBytes(item.size) }}</span>
-            <span class="item-age">{{ formatPubDate(item.pubDate) }}</span>
-          </div>
-
-          <!-- Peers & Completed -->
-          <div class="meta-peers">
-            <div class="peers-counts">
-              <span class="seeders" title="Seeders">↑ {{ item.seeders }}</span>
-              <span class="leechers" title="Leechers">↓ {{ item.leechers }}</span>
-              <span v-if="item.completed !== undefined" class="completed" title="Téléchargements réussis">
-                {{ item.completed }} compl.
-              </span>
-            </div>
-            <!-- Mini Ratio Bar -->
-            <div class="peers-ratio-bar">
-              <div
-                class="ratio-seed"
-                :style="{
-                  width: `${(item.seeders / (item.seeders + item.leechers || 1)) * 100}%`
-                }"
-              ></div>
-            </div>
-          </div>
-
-          <!-- Download Action Button -->
-          <div class="action-btn-box">
-            <button
-              type="button"
-              class="btn-view-details"
-              title="Voir la description, les images et les commentaires sur C411"
-              @click="openDetailsModal(item)"
-            >
-              📄 Fiche
-            </button>
-            <button
-              type="button"
-              class="btn-add-torrent"
-              :class="{
-                added: item.alreadyAdded || addedIds.has(item.id),
-                loading: addingId === item.id
-              }"
-              :disabled="item.alreadyAdded || addedIds.has(item.id) || addingId === item.id"
-              title="Lancer le téléchargement et streaming immédiat sur Peerflix"
-              @click="handleAdd(item)"
-            >
-              <span v-if="addingId === item.id">⏳ Ajout...</span>
-              <span v-else-if="item.alreadyAdded || addedIds.has(item.id)">✓ Actif</span>
-              <span v-else>⬇ Lancer</span>
-            </button>
-          </div>
-        </div>
-      </div>
+        :item="item"
+        :adding-id="addingId"
+        :added-ids="addedIds"
+        :broken-images="brokenImages"
+        @open-details="openDetailsModal"
+        @add="handleAdd"
+        @img-error="handleImgError"
+      />
     </div>
 
     <!-- Empty State -->
@@ -984,6 +905,7 @@ onMounted(() => {
 
 .search-input-wrapper {
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   background: #141724;
@@ -1005,6 +927,7 @@ onMounted(() => {
 
 .c411-search-input {
   flex: 1;
+  min-width: 0;
   background: transparent;
   border: none;
   outline: none;
@@ -1039,6 +962,9 @@ onMounted(() => {
   font-weight: 600;
   font-size: 0.9rem;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 110px;
   transition: background 0.15s, transform 0.05s;
 }
 
@@ -1281,29 +1207,13 @@ onMounted(() => {
   color: #f3f4f6;
 }
 
-.btn-freeleech-toggle {
+.cat-hint-pill {
   display: inline-flex;
   align-items: center;
-  background: #141724;
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  font-size: 0.78rem;
   color: #94a3b8;
-  padding: 0.35rem 0.75rem;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.btn-freeleech-toggle:hover {
-  color: #fbbf24;
-  border-color: rgba(245, 158, 11, 0.4);
-}
-
-.btn-freeleech-toggle.active {
-  background: rgba(245, 158, 11, 0.15);
-  border-color: #f59e0b;
-  color: #fbbf24;
+  padding: 0.35rem 0.6rem;
+  font-style: italic;
 }
 
 /* Active Tags Bar */
@@ -1431,302 +1341,10 @@ onMounted(() => {
   gap: 0.75rem;
 }
 
-.c411-result-row {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: #141724;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  padding: 0.75rem 1rem;
-  transition: transform 0.15s ease, border-color 0.15s ease;
-}
-
-.c411-result-row:hover {
-  border-color: rgba(56, 189, 248, 0.3);
-  transform: translateY(-1px);
-  background: #171b2b;
-}
-
-/* Poster Area */
-.result-poster-box {
-  width: 75px;
-  height: 105px;
-  flex-shrink: 0;
-  border-radius: 6px;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-  background: #0d0f18;
-}
-
-.poster-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.poster-placeholder {
-  width: 100%;
-  height: 100%;
+.c411-results-list {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #1e293b, #0f172a);
-  color: #94a3b8;
-  padding: 0.25rem;
-  text-align: center;
-  user-select: none;
-}
-
-.placeholder-icon {
-  font-size: 1.6rem;
-  margin-bottom: 0.25rem;
-}
-
-.placeholder-label {
-  font-size: 0.65rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  opacity: 0.8;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-
-/* Center Content */
-.result-center {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.row-title {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-}
-
-.badge-cat {
-  background: #1e293b;
-  color: #38bdf8;
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 0.15rem 0.45rem;
-  border-radius: 4px;
-}
-
-.item-clean-title {
-  font-size: 1rem;
-  font-weight: 700;
-  color: #ffffff;
-}
-
-.badge-season-episode {
-  background: #3b82f6;
-  color: #ffffff;
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-}
-
-.badge-year {
-  background: rgba(255, 255, 255, 0.08);
-  color: #cbd5e1;
-  font-size: 0.75rem;
-  padding: 0.1rem 0.4rem;
-  border-radius: 4px;
-}
-
-.badge-freeleech {
-  background: rgba(245, 158, 11, 0.15);
-  color: #fbbf24;
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 0.1rem 0.4rem;
-  border-radius: 4px;
-}
-
-.row-raw-release {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.75rem;
-  color: #10b981;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background: rgba(16, 185, 129, 0.05);
-  padding: 0.2rem 0.4rem;
-  border-radius: 4px;
-  width: fit-content;
-  max-width: 100%;
-}
-
-.row-tech-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  align-items: center;
-}
-
-.tech-badge {
-  font-size: 0.68rem;
-  font-weight: 600;
-  padding: 0.1rem 0.35rem;
-  border: 1px solid;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.25);
-  text-transform: uppercase;
-}
-
-/* Right Content */
-.result-right {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  flex-shrink: 0;
-}
-
-.meta-size-age {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  min-width: 75px;
-}
-
-.item-size {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: #ffffff;
-}
-
-.item-age {
-  font-size: 0.7rem;
-  color: #94a3b8;
-}
-
-.meta-peers {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  min-width: 90px;
-}
-
-.peers-counts {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.seeders {
-  color: #10b981;
-}
-
-.leechers {
-  color: #38bdf8;
-}
-
-.completed {
-  color: #94a3b8;
-  font-size: 0.68rem;
-}
-
-.peers-ratio-bar {
-  width: 100%;
-  height: 4px;
-  background: #1e293b;
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.ratio-seed {
-  height: 100%;
-  background: #10b981;
-  transition: width 0.3s ease;
-}
-
-/* Launch Button */
-.btn-add-torrent {
-  background: #f97316;
-  color: #ffffff;
-  border: none;
-  border-radius: 6px;
-  padding: 0.5rem 1rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-}
-
-.btn-add-torrent:hover:not(:disabled) {
-  background: #ea580c;
-  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
-}
-
-.btn-add-torrent.added {
-  background: #1e293b;
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  cursor: default;
-}
-
-.btn-add-torrent.loading {
-  opacity: 0.7;
-  cursor: wait;
-}
-
-.action-btn-box {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.btn-view-details {
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #94a3b8;
-  border-radius: 6px;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-}
-
-.btn-view-details:hover {
-  background: rgba(56, 189, 248, 0.15);
-  border-color: rgba(56, 189, 248, 0.35);
-  color: #38bdf8;
-  box-shadow: 0 2px 8px rgba(56, 189, 248, 0.2);
-}
-
-.clickable {
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-.clickable:hover {
-  opacity: 0.85;
-}
-
-.item-clean-title.clickable:hover {
-  color: #38bdf8;
-  text-decoration: underline;
-}
-
-.row-raw-release.clickable:hover {
-  color: #34d399;
+  gap: 0.75rem;
 }
 
 /* States */
@@ -1776,16 +1394,14 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
-  .c411-result-row {
-    flex-direction: column;
-    align-items: flex-start;
+  .filter-controls-grid {
+    gap: 0.35rem;
   }
-  .result-right {
-    width: 100%;
-    justify-content: space-between;
-    margin-top: 0.5rem;
-    padding-top: 0.5rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+  .c411-select {
+    flex: 1 1 calc(50% - 0.35rem);
+    min-width: 120px;
+    font-size: 0.75rem;
+    padding: 0.35rem 0.5rem;
   }
 }
 </style>

@@ -80,7 +80,10 @@ describe('C411SearchPanel.vue Component', () => {
     const pills = wrapper.findAll('.cat-pill-btn');
     expect(pills.length).toBeGreaterThanOrEqual(8);
     expect(wrapper.text()).toContain('Films & Vidéos');
-    expect(wrapper.text()).toContain('Séries TV');
+    expect(wrapper.text()).toContain('Ebook');
+    expect(wrapper.text()).toContain('Jeux Vidéo');
+    expect(wrapper.text()).toContain('Animation (film)');
+    expect(wrapper.text()).toContain('Animation (Série anime)');
   });
 
   it('renders search results with clean titles, green release names, badges, seeds, leechers, and posters', async () => {
@@ -119,7 +122,7 @@ describe('C411SearchPanel.vue Component', () => {
     expect(wrapper.emitted('torrent-added')).toBeTruthy();
   });
 
-  it('filters results dynamically by resolution and freeleech toggle', async () => {
+  it('filters results dynamically by resolution', async () => {
     const wrapper = mount(C411SearchPanel, {
       props: {
         c411Profile: { enabled: true },
@@ -131,12 +134,37 @@ describe('C411SearchPanel.vue Component', () => {
     expect(wrapper.text()).toContain('Dexter');
     expect(wrapper.text()).toContain('Inception');
 
-    // Filter by 4K / 2160p
+    // Select category "Films & Vidéos"
+    const filmCat = wrapper.findAll('.cat-pill-btn').find((p) => p.text().includes('Films & Vidéos'));
+    expect(filmCat).toBeDefined();
+    await filmCat!.trigger('click');
+    await new Promise((r) => setTimeout(r, 60));
+
+    // Filter by 2160p
     const resSelect = wrapper.find('select[title="Résolution"]');
+    expect(resSelect.exists()).toBe(true);
+    // Check both 4K and 2160p are distinct options
+    const resOptions = resSelect.findAll('option');
+    expect(resOptions.some((o) => o.text() === '4K')).toBe(true);
+    expect(resOptions.some((o) => o.text() === '2160p')).toBe(true);
+
     await resSelect.setValue('2160p');
 
     expect(wrapper.text()).toContain('Dexter');
     expect(wrapper.text()).not.toContain('Inception');
+
+    // Check season options has up to 100 seasons
+    const seasonSelect = wrapper.find('select[title="Saison"]');
+    expect(seasonSelect.exists()).toBe(true);
+    const seasonOpts = seasonSelect.findAll('option');
+    expect(seasonOpts.length).toBe(101); // 1 default + 100 seasons
+    expect(seasonOpts[100].text()).toBe('Saison 100');
+
+    // Check subtitles select exists with French, Forced, VOSTFR, etc.
+    const subSelect = wrapper.find('select[title="Langue des sous-titres"]');
+    expect(subSelect.exists()).toBe(true);
+    expect(subSelect.text()).toContain('VOSTFR');
+    expect(subSelect.text()).toContain('Français');
 
     // Active tags bar should display the resolution chip
     expect(wrapper.find('.active-tags-bar').exists()).toBe(true);
@@ -162,12 +190,13 @@ describe('C411SearchPanel.vue Component', () => {
     const presetChips = wrapper.findAll('.preset-chip');
     expect(presetChips.length).toBeGreaterThanOrEqual(1);
 
-    // Click on Freeleech preset
-    const freeleechPreset = presetChips.find((p) => p.text().includes('Freeleech'));
-    expect(freeleechPreset).toBeDefined();
-    await freeleechPreset!.trigger('click');
+    // Click on Films 4K HDR preset
+    const preset4k = presetChips.find((p) => p.text().includes('Films 4K HDR'));
+    expect(preset4k).toBeDefined();
+    await preset4k!.trigger('click');
+    await new Promise((r) => setTimeout(r, 60));
 
-    // Only Dexter is Freeleech
+    // Dexter is 2160p, Inception is 1080p
     expect(wrapper.text()).toContain('Dexter');
     expect(wrapper.text()).not.toContain('Inception');
   });

@@ -289,4 +289,39 @@ onUnmounted(() => {
   color: #10b981;
   border-color: rgba(16, 185, 129, 0.4);
 }
+
+@media (max-width: 768px) {
+  .filter-bar-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+    padding: 0;
+  }
+  .category-tabs {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.4rem;
+  }
+  .controls-right {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    justify-content: space-between;
+  }
+  .search-box {
+    flex: 1 1 100%;
+  }
+  .search-input {
+    width: 100%;
+  }
+  .sort-box {
+    flex: 1;
+  }
+  .btn-filter-my {
+    flex: 1;
+    justify-content: center;
+  }
+}
 </style>

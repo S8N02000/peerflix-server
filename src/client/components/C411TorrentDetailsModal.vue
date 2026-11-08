@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
 import type { C411SearchResultDTO, C411TorrentDetailsDTO } from '../../shared/types.js';
 import { fetchC411Details } from '../services/api.js';
 import { formatBytes } from '../composables/useTorrents.js';
 import { parseReleaseMetadata } from '../utils/release-parser.js';
+import C411PresentationTab from './c411/C411PresentationTab.vue';
+import C411CommentsTab from './c411/C411CommentsTab.vue';
 
 const props = defineProps<{
   item: C411SearchResultDTO | null;
@@ -14,14 +16,13 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void;
-  (e: 'add', id: string): void;
+  (e: 'add', id: string, isPrivate?: boolean): void;
 }>();
 
 const isLoading = ref(false);
 const errorMessage = ref<string | null>(null);
 const details = ref<C411TorrentDetailsDTO | null>(null);
 const activeTab = ref<'presentation' | 'comments' | 'nfo'>('presentation');
-const brokenAvatars = ref<Set<string>>(new Set());
 const copiedTitle = ref(false);
 
 const loadDetails = async () => {
@@ -36,7 +37,6 @@ const loadDetails = async () => {
     details.value = data;
   } catch (err: any) {
     errorMessage.value = err.message || 'Impossible de récupérer la fiche C411.';
-    // Fallback minimal details from item
     details.value = {
       id: props.item.id,
       title: props.item.title,
@@ -97,37 +97,9 @@ const copyTitle = () => {
   }, 2000);
 };
 
-const handleAvatarError = (author: string) => {
-  brokenAvatars.value.add(author);
-};
-
 const getMeta = (title?: string) => {
   return parseReleaseMetadata(title || '');
 };
-
-const actionButtonLabel = computed(() => {
-  const cat = (props.item?.categoryName || '').toLowerCase();
-  if (cat.includes('jeux') || cat.includes('app') || cat.includes('logiciel')) {
-    return '📥 Télécharger sur le serveur';
-  }
-  if (cat.includes('audio') || cat.includes('musique')) {
-    return '🎵 Ajouter & Écouter';
-  }
-  if (cat.includes('livre') || cat.includes('bd') || cat.includes('ebook')) {
-    return '📥 Télécharger sur le serveur';
-  }
-  return '▶ Lancer sur Peerflix (Streaming)';
-});
-
-const hasRealDescription = computed(() => {
-  if (!details.value?.descriptionHtml) return false;
-  const raw = details.value.descriptionHtml;
-  if (raw.includes('Aucune description disponible') || raw.includes('Aucune description détaillée')) {
-    return false;
-  }
-  const clean = raw.replace(/<[^>]+>/g, '').trim();
-  return clean.length > 25;
-});
 </script>
 
 <template>
@@ -167,55 +139,12 @@ const hasRealDescription = computed(() => {
           </div>
         </div>
 
-        <div class="header-action-col">
-          <button
-            type="button"
-            class="btn-modal-add"
-            :class="{ added: isAdded, loading: isAdding }"
-            :disabled="isAdding || isAdded"
-            @click="item && emit('add', item.id)"
-          >
-            <span v-if="isAdding">⏳ Ajout...</span>
-            <span v-else-if="isAdded">✓ Ajouté</span>
-            <span v-else>{{ actionButtonLabel }}</span>
-          </button>
-          <button type="button" class="btn-modal-close" title="Fermer (Échap)" @click="emit('close')">
-            ✕
-          </button>
-        </div>
+        <button type="button" class="btn-modal-close" title="Fermer (Échap)" @click="emit('close')">
+          ✕
+        </button>
       </div>
 
-      <!-- Quick Stats Banner -->
-      <div class="c411-stats-strip">
-        <div class="stat-item">
-          <span class="stat-label">Seeders :</span>
-          <span class="stat-value seeders">↑ {{ item?.seeders ?? 0 }}</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">Leechers :</span>
-          <span class="stat-value leechers">↓ {{ item?.leechers ?? 0 }}</span>
-        </div>
-        <div v-if="item?.completed !== undefined" class="stat-item">
-          <span class="stat-label">Complétés :</span>
-          <span class="stat-value completed">{{ item.completed }} fois</span>
-        </div>
-        <div v-if="item?.pubDate" class="stat-item">
-          <span class="stat-label">Publié le :</span>
-          <span class="stat-value">{{ new Date(item.pubDate).toLocaleDateString('fr-FR') }}</span>
-        </div>
-        <div v-if="details?.c411PageUrl" class="stat-item ml-auto">
-          <a
-            :href="details.c411PageUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="c411-external-link"
-          >
-            🔗 Ouvrir sur C411 ↗
-          </a>
-        </div>
-      </div>
-
-      <!-- Navigation Tabs -->
+      <!-- Navigation Tabs (slim, fixed under header) -->
       <div class="c411-modal-tabs">
         <button
           type="button"
@@ -245,114 +174,113 @@ const hasRealDescription = computed(() => {
         </button>
       </div>
 
-      <!-- Loading / Error states -->
-      <div v-if="isLoading" class="modal-loading-pane">
-        <span class="spinner-icon">🔄</span> Chargement de la fiche complète depuis C411...
-      </div>
+      <!-- Scrollable Modal Body -->
+      <div class="c411-modal-body">
+        <!-- Optional Backdrop Banner Header (scrolls with content) -->
+        <div v-if="details?.backdropUrl || item?.backdropUrl" class="modal-backdrop-banner">
+          <img :src="details?.backdropUrl || item?.backdropUrl" alt="backdrop" class="backdrop-img" />
+          <div class="backdrop-overlay"></div>
+        </div>
 
-      <div v-else-if="errorMessage && !details?.descriptionHtml" class="modal-error-pane">
-        ⚠️ {{ errorMessage }}
-      </div>
-
-      <!-- Tab Content Area -->
-      <div v-else class="c411-modal-body">
-        <!-- TAB 1: PRESENTATION & DESCRIPTION (Faithful to C411) -->
-        <div v-show="activeTab === 'presentation'" class="tab-pane-presentation">
-          <div
-            v-if="hasRealDescription"
-            class="c411-rich-description"
-            v-html="details?.descriptionHtml"
-          ></div>
-          <div v-else class="empty-description-box">
-            <div class="empty-c411-badge">Tracker Privé C411</div>
-            <h3 class="empty-c411-title">Présentation & Fiche complète</h3>
-            <p class="empty-c411-desc">
-              Sur les trackers privés comme C411, les descriptions graphiques complètes (captures d'écran, instructions d'installation, configuration requise) sont sécurisées et réservées aux sessions web.
-            </p>
+        <!-- Quick Stats Banner (scrolls with content) -->
+        <div class="c411-stats-strip">
+          <div class="stat-item">
+            <span class="stat-label">Seeders :</span>
+            <span class="stat-value seeders">↑ {{ item?.seeders ?? 0 }}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Leechers :</span>
+            <span class="stat-value leechers">↓ {{ item?.leechers ?? 0 }}</span>
+          </div>
+          <div v-if="item?.completed !== undefined" class="stat-item">
+            <span class="stat-label">Complétés :</span>
+            <span class="stat-value completed">{{ item.completed }} fois</span>
+          </div>
+          <div v-if="item?.pubDate" class="stat-item">
+            <span class="stat-label">Publié le :</span>
+            <span class="stat-value">{{ new Date(item.pubDate).toLocaleDateString('fr-FR') }}</span>
+          </div>
+          <div v-if="details?.c411PageUrl" class="stat-item ml-auto">
             <a
-              v-if="details?.c411PageUrl"
               :href="details.c411PageUrl"
               target="_blank"
               rel="noopener noreferrer"
-              class="btn-c411-cta"
+              class="c411-external-link"
             >
-              🔗 Ouvrir la présentation & les images sur C411 ↗
+              🔗 Ouvrir sur C411 ↗
             </a>
           </div>
         </div>
 
-        <!-- TAB 2: USER COMMENTS -->
-        <div v-show="activeTab === 'comments'" class="tab-pane-comments">
-          <div v-if="details && details.comments && details.comments.length > 0" class="comments-list">
-            <div
-              v-for="(comment, cIdx) in details.comments"
-              :key="cIdx"
-              class="comment-card"
-            >
-              <div class="comment-author-box">
-                <img
-                  v-if="comment.avatarUrl && !brokenAvatars.has(comment.author)"
-                  :src="comment.avatarUrl"
-                  :alt="comment.author"
-                  class="comment-avatar"
-                  loading="lazy"
-                  @error="handleAvatarError(comment.author)"
-                />
-                <div v-else class="comment-avatar-fallback">
-                  {{ comment.author.charAt(0).toUpperCase() }}
-                </div>
-                <div class="comment-meta">
-                  <span class="comment-author-name">{{ comment.author }}</span>
-                  <span v-if="comment.date" class="comment-date">{{ comment.date }}</span>
-                </div>
-              </div>
+        <div class="modal-body-content">
+          <!-- Loading / Error states -->
+          <div v-if="isLoading" class="modal-loading-pane">
+            <span class="spinner-icon">🔄</span> Chargement de la fiche complète depuis C411...
+          </div>
 
-              <div class="comment-text-box">
-                {{ comment.content }}
-              </div>
+          <div v-else-if="errorMessage && !details?.descriptionHtml" class="modal-error-pane">
+            ⚠️ {{ errorMessage }}
+          </div>
+
+          <template v-else>
+            <!-- TAB 1: PRESENTATION & DESCRIPTION -->
+            <C411PresentationTab
+              v-show="activeTab === 'presentation'"
+              :details="details"
+            />
+
+            <!-- TAB 2: USER COMMENTS -->
+            <C411CommentsTab
+              v-show="activeTab === 'comments'"
+              :details="details"
+            />
+
+            <!-- TAB 3: NFO -->
+            <div v-if="details?.nfo" v-show="activeTab === 'nfo'" class="tab-pane-nfo">
+              <pre class="nfo-pre-block font-mono">{{ details.nfo }}</pre>
             </div>
-          </div>
-
-          <div v-else class="empty-comments-box">
-            <span class="empty-comments-icon">💬</span>
-            <p class="empty-comments-title">Commentaires & Retours de test</p>
-            <p class="empty-comments-subtitle">
-              Consultez les avis de la communauté, les notes et les retours techniques directement sur la fiche C411 :
-            </p>
-            <a
-              v-if="details?.c411PageUrl"
-              :href="details.c411PageUrl"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="btn-c411-cta"
-            >
-              🔗 Voir les commentaires sur C411 ↗
-            </a>
-          </div>
-        </div>
-
-        <!-- TAB 3: NFO -->
-        <div v-if="details?.nfo" v-show="activeTab === 'nfo'" class="tab-pane-nfo">
-          <pre class="nfo-pre-block font-mono">{{ details.nfo }}</pre>
+          </template>
         </div>
       </div>
 
-      <!-- Bottom Footer -->
+      <!-- Bottom Sticky Footer (ONLY Lancer Public & Lancer Privé side-by-side) -->
       <div class="c411-modal-footer">
-        <span class="footer-hint">
-          Appuyez sur <kbd>Échap</kbd> ou cliquez à l'extérieur pour fermer
-        </span>
-        <button
-          type="button"
-          class="btn-footer-add"
-          :class="{ added: isAdded, loading: isAdding }"
-          :disabled="isAdding || isAdded"
-          @click="item && emit('add', item.id)"
-        >
-          <span v-if="isAdding">⏳ Téléchargement en cours...</span>
-          <span v-else-if="isAdded">✓ Torrent ajouté à vos téléchargements</span>
-          <span v-else>{{ actionButtonLabel }}</span>
-        </button>
+        <div class="modal-footer-actions">
+          <button
+            v-if="isAdding"
+            type="button"
+            class="btn-footer-add btn-modal-add loading"
+            disabled
+          >
+            ⏳ Téléchargement en cours...
+          </button>
+          <button
+            v-else-if="isAdded"
+            type="button"
+            class="btn-footer-add btn-modal-add added"
+            disabled
+          >
+            ✓ Torrent ajouté à vos téléchargements
+          </button>
+          <template v-else>
+            <button
+              type="button"
+              class="btn-footer-add btn-modal-add btn-public"
+              title="Ajouter en mode Public (visible par tous)"
+              @click="item && emit('add', item.id, false)"
+            >
+              🌐 Lancer (Public)
+            </button>
+            <button
+              type="button"
+              class="btn-footer-add btn-modal-add btn-private"
+              title="Ajouter en mode Privé (visible uniquement par vous et l'administrateur)"
+              @click="item && emit('add', item.id, true)"
+            >
+              🔒 Lancer (Privé)
+            </button>
+          </template>
+        </div>
       </div>
     </div>
   </div>
@@ -379,6 +307,7 @@ const hasRealDescription = computed(() => {
   border-radius: 14px;
   width: 100%;
   max-width: 950px;
+  height: 90vh;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
@@ -389,13 +318,14 @@ const hasRealDescription = computed(() => {
 
 /* Header */
 .c411-modal-header {
-  padding: 1.25rem 1.5rem;
+  padding: 1rem 1.5rem;
   background: #131d33;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1.25rem;
+  flex-shrink: 0;
 }
 
 .header-main-info {
@@ -496,40 +426,9 @@ const hasRealDescription = computed(() => {
   color: #f8fafc;
 }
 
-.header-action-col {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  flex-shrink: 0;
-}
-
-.btn-modal-add {
-  background: #059669;
-  color: white;
-  border: none;
-  font-size: 0.82rem;
-  font-weight: 700;
-  padding: 7px 14px;
-  border-radius: 7px;
-  cursor: pointer;
-  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.3);
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-
-.btn-modal-add:hover:not(:disabled) {
-  background: #10b981;
-  transform: translateY(-1px);
-}
-
-.btn-modal-add.added {
-  background: #334155;
-  color: #94a3b8;
-  cursor: default;
-  box-shadow: none;
-}
-
 .btn-modal-close {
+  flex-shrink: 0;
+  margin-left: auto;
   background: rgba(255, 255, 255, 0.08);
   border: none;
   color: #94a3b8;
@@ -547,6 +446,29 @@ const hasRealDescription = computed(() => {
 .btn-modal-close:hover {
   background: rgba(239, 68, 68, 0.2);
   color: #ef4444;
+}
+
+/* Backdrop Banner */
+.modal-backdrop-banner {
+  position: relative;
+  width: 100%;
+  height: 180px;
+  overflow: hidden;
+  background: #000;
+}
+
+.backdrop-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+  opacity: 0.7;
+}
+
+.backdrop-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.2) 0%, rgba(15, 23, 42, 0.95) 100%);
 }
 
 /* Stats strip */
@@ -610,6 +532,7 @@ const hasRealDescription = computed(() => {
   padding: 0 1.5rem;
   background: #111a2e;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
 }
 
 .modal-tab-btn {
@@ -646,11 +569,16 @@ const hasRealDescription = computed(() => {
 
 /* Modal Body */
 .c411-modal-body {
-  padding: 1.5rem;
+  padding: 0;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.modal-body-content {
+  padding: 1.25rem 1.5rem;
 }
 
 .modal-loading-pane,
@@ -661,191 +589,13 @@ const hasRealDescription = computed(() => {
   font-size: 0.95rem;
 }
 
-/* Rich Description styling faithful to C411 */
-.c411-rich-description {
-  color: #cbd5e1;
-  font-size: 0.9rem;
-  line-height: 1.6;
-}
-
-:deep(.c411-rich-description img) {
-  max-width: 100% !important;
-  height: auto !important;
-  border-radius: 8px;
-  margin: 10px auto;
-  display: block;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-}
-
-:deep(.c411-rich-description pre),
-:deep(.c411-code) {
-  background: #090d16;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 0.85rem;
-  border-radius: 6px;
-  color: #10b981;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.8rem;
-  overflow-x: auto;
-  margin: 10px 0;
-}
-
-:deep(.c411-rich-description blockquote),
-:deep(.c411-quote) {
-  border-left: 3px solid #38bdf8;
-  background: rgba(56, 189, 248, 0.08);
-  padding: 0.6rem 1rem;
-  margin: 10px 0;
-  border-radius: 0 6px 6px 0;
-  color: #e2e8f0;
-}
-
-:deep(.c411-rich-description a) {
-  color: #38bdf8;
-  text-decoration: underline;
-}
-
-/* Comments Tab */
-.comments-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.comment-card {
-  background: #141e33;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.comment-author-box {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-}
-
-.comment-avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.comment-avatar-fallback {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: #1e293b;
-  color: #38bdf8;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.85rem;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-}
-
-.comment-author-name {
-  font-weight: 700;
-  color: #10b981;
-  font-size: 0.85rem;
-}
-
-.comment-date {
-  color: #64748b;
-  font-size: 0.72rem;
-  margin-left: 0.5rem;
-}
-
-.comment-text-box {
-  color: #cbd5e1;
-  font-size: 0.85rem;
-  line-height: 1.5;
-  background: rgba(0, 0, 0, 0.2);
-  padding: 0.6rem 0.8rem;
-  border-radius: 6px;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.empty-comments-state,
-.empty-description,
-.empty-description-box,
-.empty-comments-box {
-  text-align: center;
-  padding: 3rem 1.5rem;
-  background: rgba(15, 23, 42, 0.4);
-  border: 1px dashed rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  margin: 1rem 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.empty-c411-badge {
+.spinner-icon {
   display: inline-block;
-  background: rgba(16, 185, 129, 0.15);
-  color: #34d399;
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 3px 10px;
-  border-radius: 20px;
-  margin-bottom: 0.75rem;
+  animation: spin 1s linear infinite;
 }
 
-.empty-c411-title,
-.empty-comments-title {
-  font-weight: 700;
-  color: #f1f5f9;
-  font-size: 1.1rem;
-  margin: 0 0 0.5rem 0;
-}
-
-.empty-c411-desc,
-.empty-comments-subtitle {
-  font-size: 0.88rem;
-  color: #94a3b8;
-  max-width: 500px;
-  line-height: 1.5;
-  margin: 0 0 1.25rem 0;
-}
-
-.btn-c411-cta {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: linear-gradient(135deg, #0284c7, #0369a1);
-  color: #ffffff;
-  font-size: 0.88rem;
-  font-weight: 700;
-  padding: 9px 18px;
-  border-radius: 8px;
-  text-decoration: none;
-  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
-  transition: all 0.2s ease;
-}
-
-.btn-c411-cta:hover {
-  background: linear-gradient(135deg, #0ea5e9, #0284c7);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(14, 165, 233, 0.45);
-}
-
-.empty-comments-icon,
-.empty-icon {
-  font-size: 2.5rem;
-  display: block;
-  margin-bottom: 0.5rem;
+@keyframes spin {
+  100% { transform: rotate(360deg); }
 }
 
 /* NFO Tab */
@@ -861,50 +611,74 @@ const hasRealDescription = computed(() => {
   white-space: pre;
 }
 
-/* Footer */
+/* Footer (Sticky bottom with Lancer Public and Lancer Privé side-by-side) */
 .c411-modal-footer {
-  padding: 0.85rem 1.5rem;
+  padding: 0.75rem 1.25rem;
   background: #111a2e;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.4);
 }
 
-.footer-hint {
-  font-size: 0.75rem;
-  color: #64748b;
-}
-
-.footer-hint kbd {
-  background: #1e293b;
-  padding: 2px 5px;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #cbd5e1;
+.modal-footer-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
 }
 
 .btn-footer-add {
-  background: #059669;
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   color: white;
   border: none;
-  font-size: 0.85rem;
+  font-size: 0.92rem;
   font-weight: 700;
-  padding: 8px 18px;
-  border-radius: 7px;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
   cursor: pointer;
+  white-space: nowrap;
+  min-height: 44px;
   transition: all 0.15s;
 }
 
-.btn-footer-add:hover:not(:disabled) {
-  background: #10b981;
+.btn-footer-add.btn-public {
+  background: #f97316;
+}
+
+.btn-footer-add.btn-public:hover:not(:disabled) {
+  background: #ea580c;
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-footer-add.btn-private {
+  background: #6366f1;
+}
+
+.btn-footer-add.btn-private:hover:not(:disabled) {
+  background: #4f46e5;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+  transform: translateY(-1px);
 }
 
 .btn-footer-add.added {
   background: #334155;
   color: #94a3b8;
   cursor: default;
+}
+
+.btn-footer-add.loading {
+  background: #475569;
+  color: #cbd5e1;
+  cursor: wait;
 }
 
 @keyframes fadeIn {
@@ -918,19 +692,49 @@ const hasRealDescription = computed(() => {
 }
 
 @media (max-width: 768px) {
-  .c411-modal-header {
-    flex-direction: column;
+  .c411-modal-window {
+    height: 96vh;
+    max-height: 96vh;
+    border-radius: 10px;
   }
-  .header-action-col {
-    width: 100%;
-    justify-content: space-between;
+  .c411-modal-header {
+    padding: 0.75rem 0.85rem;
+    gap: 0.75rem;
+  }
+  .modal-release-title {
+    font-size: 1.05rem;
+  }
+  .c411-modal-tabs {
+    padding: 0 0.5rem;
+  }
+  .modal-tab-btn {
+    padding: 0.6rem 0.5rem;
+    font-size: 0.78rem;
+  }
+  .modal-backdrop-banner {
+    height: 120px;
+  }
+  .c411-stats-strip {
+    padding: 0.5rem 0.85rem;
+    gap: 0.75rem;
+    font-size: 0.74rem;
+  }
+  .modal-body-content {
+    padding: 0.85rem;
   }
   .c411-modal-footer {
-    flex-direction: column;
-    align-items: stretch;
+    padding: 0.6rem 0.75rem;
+  }
+  .modal-footer-actions {
+    flex-direction: row;
+    gap: 0.5rem;
+    width: 100%;
   }
   .btn-footer-add {
-    width: 100%;
+    flex: 1;
+    padding: 0.65rem 0.5rem;
+    font-size: 0.85rem;
+    min-height: 42px;
   }
 }
 </style>
